@@ -45,3 +45,4 @@ WHERE schemaname = 'public'
     'audit_logs', 'student_notifications', 'password_reset_requests'
   )
 ORDER BY tablename, indexname;
+thanks 

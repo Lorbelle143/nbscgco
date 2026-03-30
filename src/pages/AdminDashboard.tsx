@@ -60,6 +60,8 @@ export default function AdminDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [studentsPage, setStudentsPage] = useState(1);
+  const [studentListView, setStudentListView] = useState<'grid' | 'list'>('grid');
+  const [submissionListView, setSubmissionListView] = useState<'grid' | 'list'>('grid');
   const [userFormData, setUserFormData] = useState({
     full_name: '',
     student_id: '',
@@ -1424,6 +1426,27 @@ export default function AdminDashboard() {
               <div className="flex gap-3">
                 {viewMode === 'students' && (
                   <>
+                    {/* Grid / List toggle */}
+                    <div className="flex border-2 border-gray-200 rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => setStudentListView('grid')}
+                        title="Grid view"
+                        className={`px-3 py-2 transition ${studentListView === 'grid' ? 'bg-orange-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => setStudentListView('list')}
+                        title="List view"
+                        className={`px-3 py-2 transition ${studentListView === 'list' ? 'bg-orange-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        </svg>
+                      </button>
+                    </div>
                     <button
                       onClick={() => setShowNotSubmitted(!showNotSubmitted)}
                       className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition shadow-md font-medium text-sm ${showNotSubmitted ? 'bg-amber-500 text-white' : 'bg-amber-50 text-amber-700 border-2 border-amber-300 hover:bg-amber-100'}`}
@@ -1448,6 +1471,21 @@ export default function AdminDashboard() {
                 )}
                 {viewMode === 'submissions' && (
                   <>
+                    {/* Grid / List toggle */}
+                    <div className="flex border-2 border-gray-200 rounded-xl overflow-hidden">
+                      <button onClick={() => setSubmissionListView('grid')} title="Grid view"
+                        className={`px-3 py-2 transition ${submissionListView === 'grid' ? 'bg-orange-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                        </svg>
+                      </button>
+                      <button onClick={() => setSubmissionListView('list')} title="List view"
+                        className={`px-3 py-2 transition ${submissionListView === 'list' ? 'bg-orange-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        </svg>
+                      </button>
+                    </div>
                     <button
                       onClick={handleCreate}
                       className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition shadow-lg hover:shadow-xl font-medium"
@@ -1552,83 +1590,113 @@ export default function AdminDashboard() {
           {/* Students View */}
           {viewMode === 'students' && (
             <div className="p-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {paginatedStudents.map((student) => (
-                  <div key={student.id} className="group bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
-                    <div className="aspect-square bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center relative overflow-hidden">
-                      {student.photo_url ? (
-                        <img 
-                          src={student.photo_url} 
-                          alt={student.full_name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <>
-                          <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-purple-400/20"></div>
-                          <svg className="w-28 h-28 text-blue-600 relative z-10" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                          </svg>
-                        </>
-                      )}
-                    </div>
-                    <div className="p-5">
-                      <h3 className="font-bold text-gray-800 text-lg mb-2 truncate">{student.full_name}</h3>
-                      <div className="space-y-2 mb-4">
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-                          </svg>
-                          <span className="font-medium">{student.student_id}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500 truncate">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                          </svg>
-                          <span className="truncate">{student.email}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          Joined {new Date(student.created_at).toLocaleDateString()}
-                        </div>
-                        <div className="flex items-center gap-2 text-xs">
-                          {(() => {
-                            const count = submissions.filter(s => s.student_id === student.student_id).length;
-                            return (
-                              <span className={`px-2 py-0.5 rounded-full font-bold ${count > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                                {count} submission{count !== 1 ? 's' : ''}
-                              </span>
-                            );
-                          })()}
-                        </div>
+              {/* Grid View */}
+              {studentListView === 'grid' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {paginatedStudents.map((student) => (
+                    <div key={student.id} className="group bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
+                      <div className="aspect-square bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center relative overflow-hidden">
+                        {student.photo_url ? (
+                          <img src={student.photo_url} alt={student.full_name} className="w-full h-full object-cover" />
+                        ) : (
+                          <>
+                            <div className="absolute inset-0 bg-gradient-to-br from-blue-400/20 to-purple-400/20"></div>
+                            <svg className="w-28 h-28 text-blue-600 relative z-10" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                            </svg>
+                          </>
+                        )}
                       </div>
-                      
-                      {/* Action Buttons */}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleViewStudent(student)}
-                          className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition font-medium shadow-md"
-                        >
-                          View
-                        </button>
-                        <button
-                          onClick={() => handleEditStudent(student)}
-                          className="flex-1 px-3 py-2 bg-amber-500 text-white text-sm rounded-lg hover:bg-amber-600 transition font-medium shadow-md"
-                        >
-                          Edit
-                        </button>
+                      <div className="p-5">
+                        <h3 className="font-bold text-gray-800 text-lg mb-2 truncate">{student.full_name}</h3>
+                        <div className="space-y-2 mb-4">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                            </svg>
+                            <span className="font-medium">{student.student_id}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-500 truncate">
+                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            <span className="truncate">{student.email}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Joined {new Date(student.created_at).toLocaleDateString()}
+                          </div>
+                          <div className="flex items-center gap-2 text-xs">
+                            {(() => {
+                              const count = submissions.filter(s => s.student_id === student.student_id).length;
+                              return (
+                                <span className={`px-2 py-0.5 rounded-full font-bold ${count > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                                  {count} submission{count !== 1 ? 's' : ''}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleViewStudent(student)} className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition font-medium shadow-md">View</button>
+                          <button onClick={() => handleEditStudent(student)} className="flex-1 px-3 py-2 bg-amber-500 text-white text-sm rounded-lg hover:bg-amber-600 transition font-medium shadow-md">Edit</button>
+                        </div>
+                        <button onClick={() => handleDeleteStudent(student.id, student.full_name)} className="mt-2 w-full px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition font-medium shadow-md">Delete</button>
                       </div>
-                      <button
-                        onClick={() => handleDeleteStudent(student.id, student.full_name)}
-                        className="mt-2 w-full px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition font-medium shadow-md"
-                      >
-                        Delete
-                      </button>
                     </div>
+                  ))}
+                </div>
+              )}
+
+              {/* List View */}
+              {studentListView === 'list' && (
+                <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+                  {/* Header */}
+                  <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <div className="col-span-4">Student</div>
+                    <div className="col-span-3">Email</div>
+                    <div className="col-span-2">Joined</div>
+                    <div className="col-span-1 text-center">Forms</div>
+                    <div className="col-span-2 text-center">Actions</div>
                   </div>
-                ))}
-              </div>
+                  {paginatedStudents.map((student) => {
+                    const subCount = submissions.filter(s => s.student_id === student.student_id).length;
+                    return (
+                      <div key={student.id} className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-gray-50 transition">
+                        {/* Photo + Name */}
+                        <div className="col-span-4 flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center">
+                            {student.photo_url
+                              ? <img src={student.photo_url} alt={student.full_name} className="w-full h-full object-cover" />
+                              : <svg className="w-6 h-6 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>
+                            }
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-800 text-sm truncate">{student.full_name}</p>
+                            <p className="text-xs text-gray-400">{student.student_id}</p>
+                          </div>
+                        </div>
+                        {/* Email */}
+                        <div className="col-span-3 text-sm text-gray-500 truncate">{student.email}</div>
+                        {/* Joined */}
+                        <div className="col-span-2 text-xs text-gray-400">{new Date(student.created_at).toLocaleDateString()}</div>
+                        {/* Submissions */}
+                        <div className="col-span-1 text-center">
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${subCount > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>{subCount}</span>
+                        </div>
+                        {/* Actions */}
+                        <div className="col-span-2 flex items-center justify-center gap-1">
+                          <button onClick={() => handleViewStudent(student)} className="px-2 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-medium">View</button>
+                          <button onClick={() => handleEditStudent(student)} className="px-2 py-1 bg-amber-500 text-white text-xs rounded-lg hover:bg-amber-600 transition font-medium">Edit</button>
+                          <button onClick={() => handleDeleteStudent(student.id, student.full_name)} className="px-2 py-1 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition font-medium">Del</button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 
@@ -1671,6 +1739,7 @@ export default function AdminDashboard() {
                 </button>
               </div>
             )}
+            {submissionListView === 'grid' && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {paginatedSubmissions.map((submission) => {
               const formData = submission.form_data || {};
@@ -1813,6 +1882,61 @@ export default function AdminDashboard() {
               );
             })}
             </div>
+            )}
+
+            {/* List View */}
+            {submissionListView === 'list' && (
+              <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+                <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <div className="col-span-1"></div>
+                  <div className="col-span-3">Student</div>
+                  <div className="col-span-3">Course</div>
+                  <div className="col-span-2">Contact</div>
+                  <div className="col-span-1">Date</div>
+                  <div className="col-span-2 text-center">Actions</div>
+                </div>
+                {paginatedSubmissions.map((submission) => {
+                  const formData = submission.form_data || {};
+                  return (
+                    <div key={submission.id} className={`grid grid-cols-12 gap-3 px-4 py-3 items-center hover:bg-gray-50 transition ${selectedSubmissionIds.has(submission.id) ? 'bg-orange-50' : ''}`}>
+                      <div className="col-span-1 flex items-center gap-2">
+                        <input type="checkbox" checked={selectedSubmissionIds.has(submission.id)} onChange={() => toggleSelectSubmission(submission.id)} className="w-4 h-4 accent-orange-600 cursor-pointer" />
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0 bg-gray-100">
+                          {submission.photo_url
+                            ? <img src={submission.photo_url} alt={submission.full_name} className="w-full h-full object-cover" />
+                            : <svg className="w-full h-full text-gray-400 p-1" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" /></svg>
+                          }
+                        </div>
+                      </div>
+                      <div className="col-span-3 min-w-0">
+                        <p className="font-semibold text-gray-800 text-sm truncate">{formData.lastName || ''}, {formData.firstName || ''}</p>
+                        <p className="text-xs text-gray-400">{submission.student_id}</p>
+                        {submission.submission_status && submission.submission_status !== 'submitted' && (
+                          <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${submission.submission_status === 'approved' ? 'bg-green-100 text-green-700' : submission.submission_status === 'needs-revision' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {submission.submission_status === 'approved' ? '✅ Approved' : submission.submission_status === 'needs-revision' ? '✏️ Revision' : '🔍 Review'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="col-span-3 min-w-0">
+                        <p className="text-sm text-gray-700 truncate">{submission.course}</p>
+                        <p className="text-xs text-gray-400">Year {submission.year_level}</p>
+                      </div>
+                      <div className="col-span-2 text-xs text-gray-500 truncate">{submission.contact_number}</div>
+                      <div className="col-span-1 text-xs text-gray-400">{new Date(submission.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</div>
+                      <div className="col-span-2 flex items-center justify-center gap-1 flex-wrap">
+                        <button onClick={() => handleView(submission)} className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition">View</button>
+                        <button onClick={() => handleEdit(submission)} className="px-2 py-1 bg-amber-500 text-white text-xs rounded hover:bg-amber-600 transition">Edit</button>
+                        <button onClick={async () => { const full = await fetchFullSubmission(submission); printSubmission(full); }} className="px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 transition">Print</button>
+                        <button onClick={async () => { const full = await fetchFullSubmission(submission); exportSubmissionPDF(full); }} className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition">PDF</button>
+                        <button onClick={() => handleDelete(submission.id, submission.full_name)} className="px-2 py-1 bg-red-700 text-white text-xs rounded hover:bg-red-800 transition">Del</button>
+                        <button onClick={() => handleUpdateSubmissionStatus(submission.id, 'approved', '', submission.student_id, submission.user_id)} className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition">✅</button>
+                        <button onClick={() => { const r = prompt('Revision notes:'); if (r !== null) handleUpdateSubmissionStatus(submission.id, 'needs-revision', r, submission.student_id, submission.user_id); }} className="px-2 py-1 bg-amber-500 text-white text-xs rounded hover:bg-amber-600 transition">✏️</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             </>
           )}
 
