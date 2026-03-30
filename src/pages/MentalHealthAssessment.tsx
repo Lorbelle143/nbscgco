@@ -60,6 +60,18 @@ export default function MentalHealthAssessment() {
       setEditMode(true);
       setEditId(editIdParam);
       await loadAssessment(editIdParam);
+    } else {
+      // Block new submissions if student already has one
+      const { data } = await supabase
+        .from('mental_health_assessments')
+        .select('id')
+        .eq('user_id', user?.id)
+        .limit(1);
+      
+      if (data && data.length > 0) {
+        toast.error('You have already completed the mental health assessment.');
+        navigate('/dashboard');
+      }
     }
   };
 

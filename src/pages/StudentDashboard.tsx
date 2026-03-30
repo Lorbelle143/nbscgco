@@ -235,13 +235,16 @@ export default function StudentDashboard() {
           </button>
 
           <button
-            onClick={() => navigate('/inventory-form')}
+            onClick={() => setActiveView('new-form')}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${activeView === 'new-form' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <span className="font-medium">New Form</span>
+            <span className="font-medium">Inventory Form</span>
+            {submissions.length > 0 && (
+              <span className="ml-auto text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">Done</span>
+            )}
           </button>
 
           <button
@@ -410,19 +413,39 @@ export default function StudentDashboard() {
         {activeView === 'new-form' && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
             <div className="bg-white rounded-2xl shadow-xl p-10 max-w-md w-full text-center">
-              <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Inventory Form</h2>
-              <p className="text-gray-500 mb-6">Fill out your student inventory information and upload required documents.</p>
-              <button
-                onClick={() => navigate('/inventory-form')}
-                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition shadow-md"
-              >
-                Open Inventory Form
-              </button>
+              {submissions.length > 0 ? (
+                <>
+                  <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Already Submitted</h2>
+                  <p className="text-gray-500 mb-6">You have already submitted your inventory form. Only one submission is allowed per student.</p>
+                  <button
+                    onClick={() => setActiveView('dashboard')}
+                    className="w-full bg-gradient-to-r from-gray-500 to-gray-600 text-white py-3 rounded-xl font-semibold hover:from-gray-600 hover:to-gray-700 transition shadow-md"
+                  >
+                    View My Submission
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-800 mb-2">Inventory Form</h2>
+                  <p className="text-gray-500 mb-6">Fill out your student inventory information and upload required documents.</p>
+                  <button
+                    onClick={() => navigate('/inventory-form')}
+                    className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition shadow-md"
+                  >
+                    Open Inventory Form
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -435,19 +458,33 @@ export default function StudentDashboard() {
 
             {/* Take Assessment Card */}
             <div className="bg-white rounded-2xl shadow-xl p-8 text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+              <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 ${mentalHealthAssessments.length > 0 ? 'bg-green-100' : 'bg-green-100'}`}>
                 <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
               <h2 className="text-2xl font-bold text-gray-800 mb-2">Mental Health Assessment</h2>
-              <p className="text-gray-500 mb-6">Take the BSRS-5 mental health screening assessment.</p>
-              <button
-                onClick={() => navigate('/mental-health-assessment')}
-                className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition shadow-md"
-              >
-                Take Assessment
-              </button>
+              {mentalHealthAssessments.length > 0 ? (
+                <>
+                  <p className="text-gray-500 mb-4">You have already completed the BSRS-5 assessment. Only one submission is allowed per student.</p>
+                  <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-semibold">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Assessment Completed
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-gray-500 mb-6">Take the BSRS-5 mental health screening assessment.</p>
+                  <button
+                    onClick={() => navigate('/mental-health-assessment')}
+                    className="bg-gradient-to-r from-green-500 to-emerald-600 text-white px-8 py-3 rounded-xl font-semibold hover:from-green-600 hover:to-emerald-700 transition shadow-md"
+                  >
+                    Take Assessment
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Assessment History */}

@@ -73,6 +73,19 @@ export default function InventoryForm() {
   useEffect(() => {
     if (editId && (user || isAdminMode)) {
       loadExistingSubmission(editId);
+    } else if (!editId && !isAdminMode && user) {
+      // Block new submissions if student already has one
+      supabase
+        .from('inventory_submissions')
+        .select('id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .then(({ data }) => {
+          if (data && data.length > 0) {
+            alert('You have already submitted your inventory form. Only one submission is allowed per student.');
+            navigate('/dashboard');
+          }
+        });
     }
   }, [editId, user, isAdminMode]);
 
