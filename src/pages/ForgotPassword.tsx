@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { notifyAdminPasswordResetRequest } from '../utils/emailNotify';
 
 export default function ForgotPassword() {
   const [studentId, setStudentId] = useState('');
@@ -56,6 +57,20 @@ export default function ForgotPassword() {
         });
 
       if (insertError) throw insertError;
+
+      // Notify admin silently
+      try {
+        const { data: adminProfile } = await supabase
+          .from('profiles').select('email').eq('is_admin', true).limit(1).single();
+        if (adminProfile?.email) {
+          notifyAdminPasswordResetRequest(
+            adminProfile.email,
+            profile.full_name,
+            profile.student_id,
+            reason.trim() || 'No reason provided'
+          );
+        }
+      } catch (_) {}
 
       setSuccess(true);
     } catch (err: any) {

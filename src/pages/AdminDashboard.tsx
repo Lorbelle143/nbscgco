@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { supabase, supabaseAdmin } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { LoadingOverlay } from '../components/LoadingSpinner';
+import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import AdminAnalytics from '../components/AdminAnalytics';
 import MentalHealthAdmin from '../components/MentalHealthAdmin';
 import FollowUpTracker from '../components/FollowUpTracker';
@@ -22,6 +23,7 @@ import { uploadToCloudinary } from '../utils/cloudinary';
 export default function AdminDashboard() {
   const { signOut, user } = useAuthStore();
   const toast = useToastContext();
+  useSessionTimeout();
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [adminProfile, setAdminProfile] = useState<any>(null);

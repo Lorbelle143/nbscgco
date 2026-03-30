@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseAdmin } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { logAudit } from '../utils/auditLog';
 
@@ -77,18 +77,31 @@ export default function BulkImport({ onDone }: { onDone: () => void }) {
           .maybeSingle();
         if (existing) throw new Error('Student ID already exists');
 
-        // Create auth user
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email: row.email,
-          password: row.password,
-          options: { data: { full_name: row.full_name, student_id: row.student_id } },
-        });
-        if (authError) throw authError;
-        if (!authData.user) throw new Error('Failed to create auth user');
+        // Create auth user — use admin client if available (bypasses email confirmation)
+        let userId: string | null = null;
+        if (supabaseAdmin) {
+          const { data: adminData, error: adminError } = await supabaseAdmin.auth.admin.createUser({
+            email: row.email,
+            password: row.password,
+            email_confirm: true,
+            user_metadata: { full_name: row.full_name, student_id: row.student_id },
+          });
+          if (adminError) throw adminError;
+          userId = adminData.user?.id || null;
+        } else {
+          const { data: authData, error: authError } = await supabase.auth.signUp({
+            email: row.email,
+            password: row.password,
+            options: { data: { full_name: row.full_name, student_id: row.student_id } },
+          });
+          if (authError) throw authError;
+          userId = authData.user?.id || null;
+        }
+        if (!userId) throw new Error('Failed to create auth user');
 
         // Create profile
-        const { error: profileError } = await supabase.from('profiles').insert({
-          id: authData.user.id,
+        const { error: profileError } = await (supabaseAdmin || supabase).from('profiles').insert({
+          id: userId,
           full_name: row.full_name,
           student_id: row.student_id,
           email: row.email,

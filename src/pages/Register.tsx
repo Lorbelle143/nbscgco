@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase, supabaseAdmin } from '../lib/supabase';
 import PasswordStrength from '../components/PasswordStrength';
+import { notifyAdminNewRegistration } from '../utils/emailNotify';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -94,6 +95,14 @@ export default function Register() {
       }
 
       setSuccess(true);
+      // Notify admin silently
+      try {
+        const { data: adminProfile } = await supabase
+          .from('profiles').select('email').eq('is_admin', true).limit(1).single();
+        if (adminProfile?.email) {
+          notifyAdminNewRegistration(adminProfile.email, formData.fullName, formData.studentId, formData.email);
+        }
+      } catch (_) {}
       // Auto-redirect to login after 2 seconds
       setTimeout(() => navigate('/login'), 2000);
     } catch (err: any) {

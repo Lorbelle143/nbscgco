@@ -202,3 +202,73 @@ export async function alertCounselorSuicidalIdeation(
     html,
   });
 }
+
+export async function notifyAdminNewRegistration(
+  counselorEmail: string,
+  studentName: string,
+  studentId: string,
+  studentEmail: string
+) {
+  const html = baseTemplate(`
+    <div style="background:#eff6ff;border:2px solid #2563eb;border-radius:12px;padding:14px 20px;margin-bottom:20px;text-align:center;">
+      <p style="color:#1d4ed8;font-weight:bold;font-size:16px;margin:0;">🎓 New Student Registered</p>
+    </div>
+    <p style="color:#374151;font-size:15px;margin:0 0 16px;">A new student has registered in the NBSC Guidance Counseling System.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:20px;">
+    <tr><td style="padding:16px 20px;">
+      <table width="100%">
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:13px;width:40%;">Student Name:</td>
+            <td style="padding:4px 0;color:#111827;font-size:14px;font-weight:700;">${studentName}</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:13px;">Student ID:</td>
+            <td style="padding:4px 0;color:#111827;font-size:14px;font-weight:700;">${studentId}</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:13px;">Email:</td>
+            <td style="padding:4px 0;color:#111827;font-size:13px;">${studentEmail}</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:13px;">Registered:</td>
+            <td style="padding:4px 0;color:#111827;font-size:13px;">${new Date().toLocaleString('en-PH', { dateStyle: 'long', timeStyle: 'short' })}</td></tr>
+      </table>
+    </td></tr></table>
+    <p style="color:#9ca3af;font-size:12px;margin:0;">Log in to the GCO system to view the student's profile.</p>
+  `);
+
+  await sendBrevoEmail({
+    to_email: counselorEmail,
+    to_name: 'Guidance Counselor',
+    subject: `🎓 New Student Registered — ${studentName} (${studentId})`,
+    html,
+  });
+}
+
+export async function notifyAdminPasswordResetRequest(
+  counselorEmail: string,
+  studentName: string,
+  studentId: string,
+  reason: string
+) {
+  const html = baseTemplate(`
+    <div style="background:#fff7ed;border:2px solid #f59e0b;border-radius:12px;padding:14px 20px;margin-bottom:20px;text-align:center;">
+      <p style="color:#b45309;font-weight:bold;font-size:16px;margin:0;">🔐 Password Reset Request</p>
+    </div>
+    <p style="color:#374151;font-size:15px;margin:0 0 16px;">A student has submitted a password reset request and is waiting for your action.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:20px;">
+    <tr><td style="padding:16px 20px;">
+      <table width="100%">
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:13px;width:40%;">Student Name:</td>
+            <td style="padding:4px 0;color:#111827;font-size:14px;font-weight:700;">${studentName}</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:13px;">Student ID:</td>
+            <td style="padding:4px 0;color:#111827;font-size:14px;font-weight:700;">${studentId}</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:13px;">Reason:</td>
+            <td style="padding:4px 0;color:#111827;font-size:13px;">${reason}</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;font-size:13px;">Submitted:</td>
+            <td style="padding:4px 0;color:#111827;font-size:13px;">${new Date().toLocaleString('en-PH', { dateStyle: 'long', timeStyle: 'short' })}</td></tr>
+      </table>
+    </td></tr></table>
+    <p style="color:#92400e;font-size:13px;background:#fef3c7;padding:10px 14px;border-radius:8px;margin:0;">Please log in to the GCO system → Password Reset Requests to process this request.</p>
+  `);
+
+  await sendBrevoEmail({
+    to_email: counselorEmail,
+    to_name: 'Guidance Counselor',
+    subject: `🔐 Password Reset Request — ${studentName} (${studentId})`,
+    html,
+  });
+}

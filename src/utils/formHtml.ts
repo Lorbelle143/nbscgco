@@ -145,12 +145,6 @@ export function buildFormsHtml(submission: any): string {
         <td style="padding:2px 4px;font-size:11px;">${f.religion||''}</td>
         <td style="padding:2px 4px;font-size:11px;">${f.civilStatus||''}</td>
       </tr>
-      <tr>
-        <td style="padding:2px 4px;font-size:9px;color:#555;" colspan="5">Permanent Address</td>
-      </tr>
-      <tr>
-        <td style="padding:2px 4px;font-size:11px;" colspan="5">${f.permanentAddress||''}</td>
-      </tr>
     </table>
     <div style="flex:0 0 96px;border:1.5px solid #555;width:96px;height:96px;display:flex;align-items:center;justify-content:center;background:#fff;overflow:hidden;">
       ${submission.photo_url

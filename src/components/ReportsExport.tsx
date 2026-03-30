@@ -15,10 +15,10 @@ export default function ReportsExport() {
     setLoading(true);
     try {
       const [{ data: assessments }, { data: sessions }, { data: consents }, { data: students }] = await Promise.all([
-        supabase.from('mental_health_assessments').select('*'),
-        supabase.from('counseling_sessions').select('*'),
-        supabase.from('consent_records').select('*'),
-        supabase.from('profiles').select('*').eq('is_admin', false),
+        supabase.from('mental_health_assessments').select('*').order('created_at', { ascending: false }).limit(1000),
+        supabase.from('counseling_sessions').select('*').order('session_date', { ascending: false }).limit(1000),
+        supabase.from('consent_records').select('*').limit(1000),
+        supabase.from('profiles').select('id, full_name, student_id, email, created_at').eq('is_admin', false).limit(1000),
       ]);
 
       const a = assessments || [];

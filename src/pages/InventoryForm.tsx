@@ -4,7 +4,6 @@ import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { uploadToCloudinary } from '../utils/cloudinary';
-import { uploadDocument } from '../utils/storageUpload';
 
 export default function InventoryForm() {
   const { user } = useAuthStore();
@@ -55,8 +54,6 @@ export default function InventoryForm() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
-  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
-  const [existingDocumentUrls, setExistingDocumentUrls] = useState<string[]>([]);
 
   // Enable session timeout protection (always call hook, but it checks isAdminMode internally)
   useSessionTimeout();
@@ -203,7 +200,6 @@ export default function InventoryForm() {
         
         setExistingPhotoUrl(data.photo_url);
         setPhotoPreview(data.photo_url);
-        setExistingDocumentUrls(loadedFormData.documentUrls || []);
       }
     } catch (err: any) {
       setError('Failed to load submission: ' + err.message);
@@ -358,16 +354,6 @@ export default function InventoryForm() {
         photoUrl = await uploadToCloudinary(photoFile, 'nbsc-gco/student-photos');
       }
 
-      // Upload new documents if provided
-      let documentUrls = [...existingDocumentUrls];
-      if (documentFiles.length > 0) {
-        setError('📤 Uploading documents...');
-        const uploaded = await Promise.all(
-          documentFiles.map(f => uploadDocument(f, `nbsc-gco/documents/${formData.idNo || 'unknown'}`))
-        );
-        documentUrls = [...documentUrls, ...uploaded];
-      }
-
       setError('💾 Saving to database...');
 
       const submissionData = {
@@ -378,7 +364,7 @@ export default function InventoryForm() {
         year_level: formData.programYear.split(' ')[0] || '',
         contact_number: formData.mobilePhone,
         photo_url: photoUrl || 'https://via.placeholder.com/150?text=No+Photo',
-        form_data: { ...formData, documentUrls },
+        form_data: { ...formData },
         google_form_response_id: '',
       };
 
@@ -1664,80 +1650,6 @@ export default function InventoryForm() {
                 </div>
               </div>
             </div>
-            )}
-
-            {/* Document Upload Section */}
-            {currentSection === 2 && (
-              <div className="bg-white border-2 border-dashed border-blue-200 rounded-2xl p-6 space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-800">Supporting Documents</h3>
-                    <p className="text-sm text-gray-500">Upload PDF or Word documents (max 10MB each)</p>
-                  </div>
-                </div>
-
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                  multiple
-                  onChange={e => {
-                    const files = Array.from(e.target.files || []);
-                    const valid = files.filter(f => f.size <= 10 * 1024 * 1024);
-                    if (valid.length < files.length) setError('Some files exceed 10MB and were skipped.');
-                    setDocumentFiles(prev => [...prev, ...valid]);
-                    e.target.value = '';
-                  }}
-                  className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                />
-
-                {/* Newly selected files */}
-                {documentFiles.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">New files to upload</p>
-                    {documentFiles.map((f, i) => (
-                      <div key={i} className="flex items-center justify-between bg-blue-50 rounded-lg px-4 py-2">
-                        <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                          </svg>
-                          <span className="text-sm text-gray-700 truncate max-w-xs">{f.name}</span>
-                          <span className="text-xs text-gray-400">({(f.size / 1024).toFixed(0)} KB)</span>
-                        </div>
-                        <button type="button" onClick={() => setDocumentFiles(prev => prev.filter((_, idx) => idx !== i))}
-                          className="text-red-400 hover:text-red-600 text-lg leading-none">✕</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Already uploaded documents (edit mode) */}
-                {existingDocumentUrls.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Already uploaded</p>
-                    {existingDocumentUrls.map((url, i) => {
-                      const name = decodeURIComponent(url.split('/').pop() || `Document ${i + 1}`);
-                      return (
-                        <div key={i} className="flex items-center justify-between bg-green-50 rounded-lg px-4 py-2">
-                          <a href={url} target="_blank" rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-sm text-green-700 hover:underline truncate max-w-xs">
-                            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            {name}
-                          </a>
-                          <button type="button" onClick={() => setExistingDocumentUrls(prev => prev.filter((_, idx) => idx !== i))}
-                            className="text-red-400 hover:text-red-600 text-lg leading-none ml-2">✕</button>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
             )}
 
             {error && (
