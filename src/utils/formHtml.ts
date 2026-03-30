@@ -145,6 +145,12 @@ export function buildFormsHtml(submission: any): string {
         <td style="padding:2px 4px;font-size:11px;">${f.religion||''}</td>
         <td style="padding:2px 4px;font-size:11px;">${f.civilStatus||''}</td>
       </tr>
+      <tr>
+        <td style="padding:2px 4px;font-size:9px;color:#555;" colspan="5">Permanent Address</td>
+      </tr>
+      <tr>
+        <td style="padding:2px 4px;font-size:11px;" colspan="5">${f.permanentAddress||''}</td>
+      </tr>
     </table>
     <div style="flex:0 0 96px;border:1.5px solid #555;width:96px;height:96px;display:flex;align-items:center;justify-content:center;background:#fff;overflow:hidden;">
       ${submission.photo_url
@@ -303,6 +309,9 @@ export function buildFormsHtml(submission: any): string {
     <tr>
       <td style="border:none;width:36%;vertical-align:bottom;padding:0 12px 0 0;">
         <div style="margin-top:20px;border-top:1px solid #000;padding-top:2px;text-align:center;font-size:10px;">
+          ${f.studentSignatureUrl
+            ? `<img src="${f.studentSignatureUrl}" style="height:40px;object-fit:contain;display:block;margin:0 auto 2px;"/>`
+            : '<div style="min-height:40px;"></div>'}
           <div style="font-style:italic;font-size:11px;min-height:12px;text-transform:uppercase;">${(f.firstName||'').toUpperCase()} ${f.middleInitial ? (f.middleInitial+'.').toUpperCase() : ''} ${(f.lastName||'').toUpperCase()}</div>
           Student's signature over printed name
         </div>
