@@ -22,7 +22,6 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'complete' | 'incomplete'>('all');
   const [mentalHealthViewMode, setMentalHealthViewMode] = useState<'grid' | 'list'>('grid');
   const [showNotifications, setShowNotifications] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -155,11 +154,7 @@ export default function StudentDashboard() {
       formData.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       formData.lastName?.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const hasDocuments = formData.documentUrls && formData.documentUrls.length > 0;
-    const matchesFilter = 
-      filterStatus === 'all' ||
-      (filterStatus === 'complete' && hasDocuments) ||
-      (filterStatus === 'incomplete' && !hasDocuments);
+    const matchesFilter = true; // all submissions are complete (form validates before submit)
 
     return matchesSearch && matchesFilter;
   });
@@ -167,8 +162,6 @@ export default function StudentDashboard() {
   // Calculate stats
   const stats = {
     total: submissions.length,
-    complete: submissions.filter(s => s.form_data?.documentUrls?.length > 0).length,
-    incomplete: submissions.filter(s => !s.form_data?.documentUrls?.length).length,
     lastUpdated: submissions[0] ? new Date(submissions[0].created_at) : null
   };
 
@@ -178,9 +171,8 @@ export default function StudentDashboard() {
   const latestFormData = submissions[0]?.form_data || {};
   const filledProfile = profileFields.filter(f => profile?.[f]).length;
   const filledForm = formFields.filter(f => latestFormData[f]).length;
-  const totalFields = profileFields.length + formFields.length + 1; // +1 for documents
-  const filledDocs = latestFormData.documentUrls?.length > 0 ? 1 : 0;
-  const completeness = submissions.length === 0 ? Math.round((filledProfile / profileFields.length) * 100) : Math.round(((filledProfile + filledForm + filledDocs) / totalFields) * 100);
+  const totalFields = profileFields.length + formFields.length;
+  const completeness = submissions.length === 0 ? Math.round((filledProfile / profileFields.length) * 100) : Math.round(((filledProfile + filledForm) / totalFields) * 100);
 
   if (initialLoading) {
     return (
@@ -586,36 +578,6 @@ export default function StudentDashboard() {
             </div>
           </div>
 
-          {/* Complete */}
-          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-green-500 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Complete</p>
-                <p className="text-3xl font-bold text-gray-900">{stats.complete}</p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
-          {/* Incomplete */}
-          <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-amber-500 hover:shadow-xl transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Incomplete</p>
-                <p className="text-3xl font-bold text-gray-900">{stats.incomplete}</p>
-              </div>
-              <div className="w-12 h-12 bg-amber-100 rounded-lg flex items-center justify-center">
-                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
           {/* Last Updated */}
           <div className="bg-white rounded-xl shadow-lg p-6 border-l-4 border-purple-500 hover:shadow-xl transition-shadow">
             <div className="flex items-center justify-between">
@@ -760,17 +722,6 @@ export default function StudentDashboard() {
                     className="pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition w-full sm:w-64"
                   />
                 </div>
-
-                {/* Filter */}
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value as any)}
-                  className="px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition font-medium"
-                >
-                  <option value="all">All Status</option>
-                  <option value="complete">✅ Complete</option>
-                  <option value="incomplete">⏳ Incomplete</option>
-                </select>
               </div>
             )}
           </div>
@@ -804,18 +755,13 @@ export default function StudentDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {filteredSubmissions.map((submission) => {
                 const formData = submission.form_data || {};
-                const isComplete = formData.documentUrls && formData.documentUrls.length > 0;
                 
                 return (
                   <div key={submission.id} className="group bg-white rounded-xl p-6 border-2 border-gray-200 hover:border-blue-400 hover:shadow-xl transition-all duration-200">
-                    {/* Status Badge */}
+                    {/* Submission Header */}
                     <div className="flex justify-between items-start mb-4">
-                      <span className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 ${
-                        isComplete 
-                          ? 'bg-green-50 text-green-700 border-green-300' 
-                          : 'bg-amber-50 text-amber-700 border-amber-300'
-                      }`}>
-                        {isComplete ? '✅ Complete' : '⏳ Incomplete'}
+                      <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-green-50 text-green-700 border-green-300">
+                        ✅ Submitted
                       </span>
                       <span className="text-xs text-gray-500 font-medium">
                         ID: {submission.student_id}
@@ -848,18 +794,7 @@ export default function StudentDashboard() {
                       </div>
                     </div>
 
-                    {/* Documents Badge */}
-                    {formData.documentUrls && formData.documentUrls.length > 0 && (
-                      <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-green-50 border-2 border-green-200 rounded-lg">
-                        <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-xs font-medium text-green-700">
-                          {formData.documentUrls.length} documents uploaded
-                        </span>
-                      </div>
-                    )}
-
+                    {/* Submitted date */}
                     <div className="flex items-center gap-2 text-xs text-gray-500 mb-4 pb-4 border-b border-gray-200">
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -932,7 +867,6 @@ export default function StudentDashboard() {
               <button
                 onClick={() => {
                   setSearchTerm('');
-                  setFilterStatus('all');
                 }}
                 className="text-blue-600 hover:text-blue-700 font-medium"
               >
@@ -958,7 +892,7 @@ export default function StudentDashboard() {
               <div className="space-y-4">
                 {submissions.map((s) => {
                   const f = s.form_data || {};
-                  const isComplete = f.documentUrls?.length > 0;
+                  const isComplete = !!(f.firstName && f.lastName && f.programYear);
                   return (
                     <div key={s.id} className="relative flex gap-4 pl-10">
                       <div className={`absolute left-2.5 w-3 h-3 rounded-full border-2 border-white mt-1.5 ${isComplete ? 'bg-green-500' : 'bg-amber-400'}`}></div>
@@ -987,9 +921,6 @@ export default function StudentDashboard() {
                             </button>
                           </div>
                         </div>
-                        {f.documentUrls?.length > 0 && (
-                          <p className="text-xs text-green-600 mt-1">{f.documentUrls.length} document(s) uploaded</p>
-                        )}
                       </div>
                     </div>
                   );
@@ -1528,51 +1459,6 @@ function ViewSubmissionModal({ submission, onClose }: any) {
               </div>
             </div>
           </div>
-
-          {/* Documents */}
-          {formData.documentUrls && formData.documentUrls.length > 0 && (
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">
-                📄 Uploaded Documents ({formData.documentUrls.length})
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {formData.documentUrls.map((url: string, index: number) => {
-                  const isPDF = url.toLowerCase().includes('.pdf') || url.includes('application/pdf');
-                  return (
-                    <div key={index} className="border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition">
-                      <div className="aspect-square bg-gray-100">
-                        {isPDF ? (
-                          // PDF Preview
-                          <div 
-                            className="w-full h-full flex flex-col items-center justify-center bg-red-50 cursor-pointer hover:bg-red-100 transition"
-                            onClick={() => window.open(url, '_blank')}
-                          >
-                            <svg className="w-16 h-16 text-red-600 mb-2" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                            </svg>
-                            <p className="text-sm font-bold text-red-600">PDF</p>
-                          </div>
-                        ) : (
-                          // Image Preview
-                          <img
-                            src={url}
-                            alt={`Document ${index + 1}`}
-                            className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition"
-                            onClick={() => window.open(url, '_blank')}
-                          />
-                        )}
-                      </div>
-                      <div className="p-2 bg-gray-50 text-center">
-                        <p className="text-xs font-medium text-gray-700">
-                          {isPDF ? '📄 PDF' : '📷 Image'} {index + 1}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
 
           <div className="flex justify-end gap-2 pt-4 border-t">
             <button
