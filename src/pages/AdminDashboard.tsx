@@ -304,7 +304,9 @@ export default function AdminDashboard() {
 
       const studentsWithPhotos = studentsData.map(student => {
         const submission = submissionsData.find(s => s.student_id === student.student_id);
-        return { ...student, photo_url: submission?.photo_url || null };
+        // Prefer submission photo, fall back to profile picture (handles both column name variants)
+        const profilePic = student.profile_picture || student.profile_picture_url || null;
+        return { ...student, photo_url: submission?.photo_url || profilePic };
       });
 
       setStudents(studentsWithPhotos);
