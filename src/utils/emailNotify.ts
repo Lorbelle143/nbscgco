@@ -164,3 +164,41 @@ estions, please visit the Guidance and Counseling Office.</p>
     html,
   });
 }
+
+export async function alertCounselorSuicidalIdeation(
+  studentName: string,
+  studentId: string,
+  totalScore: number,
+  counselorEmail: string
+) {
+  const html = baseTemplate(`
+    <div style="background:#fef2f2;border:2px solid #dc2626;border-radius:12px;padding:16px 20px;margin-bottom:20px;text-align:center;">
+      <p style="color:#dc2626;font-weight:bold;font-size:18px;margin:0;">🚨 URGENT: Suicidal Ideation Detected</p>
+    </div>
+    <p style="color:#374151;font-size:15px;margin:0 0 12px;">A student has indicated <strong>suicidal thoughts</strong> in their BSRS-5 mental health assessment and requires <strong>immediate attention</strong>.</p>
+    <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:20px;">
+    <tr><td style="padding:18px 22px;">
+      <table width="100%">
+        <tr><td style="padding:5px 0;color:#6b7280;font-size:13px;width:40%;">Student Name:</td>
+            <td style="padding:5px 0;color:#111827;font-size:14px;font-weight:700;">${studentName}</td></tr>
+        <tr><td style="padding:5px 0;color:#6b7280;font-size:13px;">Student ID:</td>
+            <td style="padding:5px 0;color:#111827;font-size:14px;font-weight:700;">${studentId}</td></tr>
+        <tr><td style="padding:5px 0;color:#6b7280;font-size:13px;">BSRS-5 Score:</td>
+            <td style="padding:5px 0;color:#dc2626;font-size:14px;font-weight:700;">${totalScore}/20</td></tr>
+        <tr><td style="padding:5px 0;color:#6b7280;font-size:13px;">Submitted:</td>
+            <td style="padding:5px 0;color:#111827;font-size:13px;">${new Date().toLocaleString('en-PH', { dateStyle: 'long', timeStyle: 'short' })}</td></tr>
+      </table>
+    </td></tr></table>
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:12px 16px;margin-bottom:20px;">
+      <p style="color:#9a3412;font-size:13px;margin:0;"><strong>Action Required:</strong> Please reach out to this student immediately or coordinate with the appropriate support team. Check the GCO system for full assessment details.</p>
+    </div>
+    <p style="color:#9ca3af;font-size:12px;margin:0;">This is an automated alert from the NBSC Guidance and Counseling Office System.</p>
+  `);
+
+  await sendBrevoEmail({
+    to_email: counselorEmail,
+    to_name: 'Guidance Counselor',
+    subject: `🚨 URGENT: Suicidal Ideation — ${studentName} (${studentId})`,
+    html,
+  });
+}

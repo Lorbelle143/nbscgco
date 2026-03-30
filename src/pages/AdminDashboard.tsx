@@ -56,7 +56,8 @@ export default function AdminDashboard() {
   const [resetRequests, setResetRequests] = useState<any[]>([]);
   const [resetPasswordInputs, setResetPasswordInputs] = useState<Record<string, string>>({});
   const [currentPage, setCurrentPage] = useState(1);
-  const PAGE_SIZE = 20;
+  const [pageSize, setPageSize] = useState(20);
+  const [studentsPage, setStudentsPage] = useState(1);
   const [userFormData, setUserFormData] = useState({
     full_name: '',
     student_id: '',
@@ -897,11 +898,15 @@ export default function AdminDashboard() {
     }
   });
 
-  const totalPages = Math.ceil(filteredAndSortedSubmissions.length / PAGE_SIZE);
-  const paginatedSubmissions = filteredAndSortedSubmissions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const totalPages = Math.ceil(filteredAndSortedSubmissions.length / pageSize);
+  const paginatedSubmissions = filteredAndSortedSubmissions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Reset to page 1 when search/sort changes
   useEffect(() => { setCurrentPage(1); }, [searchTerm, sortBy]);
+  useEffect(() => { setStudentsPage(1); }, [searchTerm, sortBy, studentCourseFilter, showNotSubmitted]);
+
+  const totalStudentPages = Math.ceil(sortedStudents.length / pageSize);
+  const paginatedStudents = sortedStudents.slice((studentsPage - 1) * pageSize, studentsPage * pageSize);
 
   if (initialLoading) {
     return (
@@ -1544,7 +1549,7 @@ export default function AdminDashboard() {
           {viewMode === 'students' && (
             <div className="p-8">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {sortedStudents.map((student) => (
+                {paginatedStudents.map((student) => (
                   <div key={student.id} className="group bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-2xl shadow-md hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:-translate-y-1">
                     <div className="aspect-square bg-gradient-to-br from-blue-100 to-indigo-200 flex items-center justify-center relative overflow-hidden">
                       {student.photo_url ? (
@@ -1810,9 +1815,19 @@ export default function AdminDashboard() {
           {/* Pagination */}
           {viewMode === 'submissions' && totalPages > 1 && (
             <div className="flex items-center justify-between mt-6 px-2">
-              <p className="text-sm text-gray-500">
-                Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, filteredAndSortedSubmissions.length)} of {filteredAndSortedSubmissions.length} submissions
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-gray-500">
+                  Showing {(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, filteredAndSortedSubmissions.length)} of {filteredAndSortedSubmissions.length} submissions
+                </p>
+                <select
+                  value={pageSize}
+                  onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}
+                  className="text-sm border border-gray-300 rounded-lg px-2 py-1"
+                >
+                  <option value={20}>20 / page</option>
+                  <option value={50}>50 / page</option>
+                </select>
+              </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
@@ -1836,6 +1851,53 @@ export default function AdminDashboard() {
                 <button
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                   disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Students Pagination */}
+          {viewMode === 'students' && totalStudentPages > 1 && (
+            <div className="flex items-center justify-between mt-6 px-8 pb-4">
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-gray-500">
+                  Showing {(studentsPage - 1) * pageSize + 1}–{Math.min(studentsPage * pageSize, sortedStudents.length)} of {sortedStudents.length} students
+                </p>
+                <select
+                  value={pageSize}
+                  onChange={e => { setPageSize(Number(e.target.value)); setStudentsPage(1); }}
+                  className="text-sm border border-gray-300 rounded-lg px-2 py-1"
+                >
+                  <option value={20}>20 / page</option>
+                  <option value={50}>50 / page</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setStudentsPage(p => Math.max(1, p - 1))}
+                  disabled={studentsPage === 1}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  ← Prev
+                </button>
+                {Array.from({ length: Math.min(totalStudentPages, 7) }, (_, i) => {
+                  const page = totalStudentPages <= 7 ? i + 1 : studentsPage <= 4 ? i + 1 : studentsPage >= totalStudentPages - 3 ? totalStudentPages - 6 + i : studentsPage - 3 + i;
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setStudentsPage(page)}
+                      className={`px-3 py-1.5 text-sm rounded-lg border ${studentsPage === page ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-300 hover:bg-gray-50'}`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setStudentsPage(p => Math.min(totalStudentPages, p + 1))}
+                  disabled={studentsPage === totalStudentPages}
                   className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Next →

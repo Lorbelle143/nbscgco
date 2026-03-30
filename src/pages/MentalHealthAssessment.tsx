@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
+import { alertCounselorSuicidalIdeation } from '../utils/emailNotify';
 
 export default function MentalHealthAssessment() {
   const { user } = useAuthStore();
@@ -210,6 +211,30 @@ export default function MentalHealthAssessment() {
         requiresCounseling,
         hasSuicidalThoughts
       });
+
+      // Auto-alert counselor if suicidal ideation detected
+      if (hasSuicidalThoughts || totalScore >= 14) {
+        try {
+          const { data: adminData } = await supabase
+            .from('profiles')
+            .select('email')
+            .eq('is_admin', true)
+            .limit(1)
+            .single();
+
+          if (adminData?.email) {
+            await alertCounselorSuicidalIdeation(
+              profile?.full_name || 'Unknown Student',
+              profile?.student_id || 'N/A',
+              totalScore,
+              adminData.email
+            );
+          }
+        } catch (alertErr) {
+          // Silent fail — don't block the student flow
+          console.error('Counselor alert failed:', alertErr);
+        }
+      }
 
       // Show success message
       toast.success(editMode ? 'Assessment updated successfully!' : 'Assessment submitted successfully!');
