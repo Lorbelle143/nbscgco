@@ -66,12 +66,12 @@ export default function FollowUpTracker() {
   const sendFollowUpEmail = async (a: any, status: string, notes: string) => {
     setSendingEmail(true);
     try {
+      const brevoKey = import.meta.env.VITE_BREVO_API_KEY || '';
+      if (!brevoKey) { toast.error('VITE_BREVO_API_KEY not set in .env'); return; }
+
       const client = supabaseAdmin || supabase;
       const { data: profile } = await client.from('profiles').select('email').eq('student_id', a.student_id).maybeSingle();
       if (!profile?.email) { toast.error('Could not find student email'); return; }
-
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       const STATUS_LABELS: Record<string, string> = {
         scheduled: 'Scheduled', 'in-progress': 'In Progress', completed: 'Completed', pending: 'Pending',
@@ -118,22 +118,18 @@ export default function FollowUpTracker() {
 </table></td></tr></table>
 </body></html>`;
 
-      const res = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-          'apikey': supabaseAnonKey,
-        },
+        headers: { 'api-key': brevoKey, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to_email: profile.email,
-          to_name: a.full_name,
+          sender: { name: 'NBSC Guidance and Counseling Office', email: 'gco@nbsc.edu.ph' },
+          to: [{ email: profile.email, name: a.full_name }],
           subject: `${icon} Counseling Update: ${label} — NBSC Guidance Office`,
-          html,
+          htmlContent: html,
         }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Failed to send email');
+      if (!res.ok) throw new Error(result.message || 'Failed to send email');
       toast.success(`📧 Email sent to ${profile.email}`);
     } catch (e: any) {
       toast.error('Email failed: ' + (e.message || 'Unknown error'));

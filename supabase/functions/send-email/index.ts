@@ -6,7 +6,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY') || '';
+// Try secret first, fall back to env var
+const BREVO_API_KEY = Deno.env.get('BREVO_API_KEY') || Deno.env.get('BREVO_KEY') || '';
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
@@ -24,13 +25,6 @@ Deno.serve(async (req: Request) => {
     if (!to_email || !subject || !html) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (!BREVO_API_KEY) {
-      return new Response(JSON.stringify({ error: 'BREVO_API_KEY not set in Edge Function secrets' }), {
-        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
