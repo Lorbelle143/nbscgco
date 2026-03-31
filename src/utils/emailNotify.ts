@@ -12,6 +12,10 @@ interface EmailPayload {
 
 async function sendBrevoEmail(payload: EmailPayload) {
   try {
+    if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+      console.error('Email: Missing SUPABASE_URL or SUPABASE_ANON_KEY');
+      return;
+    }
     const res = await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
@@ -24,6 +28,8 @@ async function sendBrevoEmail(payload: EmailPayload) {
     if (!res.ok) {
       const err = await res.json();
       console.error('Email send failed:', err);
+    } else {
+      console.log('Email sent to:', payload.to_email);
     }
   } catch (e) {
     console.error('Email send failed:', e);
