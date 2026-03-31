@@ -1,4 +1,5 @@
 /// <reference path="../deno.d.ts" />
+export {};
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
