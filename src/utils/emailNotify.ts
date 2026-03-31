@@ -1,5 +1,7 @@
 import { supabase } from '../lib/supabase';
 
+const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY || '';
+
 interface EmailPayload {
   to_email: string;
   to_name: string;
@@ -8,23 +10,27 @@ interface EmailPayload {
 }
 
 async function sendBrevoEmail(payload: EmailPayload) {
+  if (!BREVO_API_KEY) {
+    console.error('Email: VITE_BREVO_API_KEY not set in .env');
+    return;
+  }
   try {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-    const res = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
+        'api-key': BREVO_API_KEY,
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseAnonKey}`,
-        'apikey': supabaseAnonKey,
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        sender: { name: 'NBSC Guidance and Counseling Office', email: 'gco@nbsc.edu.ph' },
+        to: [{ email: payload.to_email, name: payload.to_name }],
+        subject: payload.subject,
+        htmlContent: payload.html,
+      }),
     });
     if (!res.ok) {
       const err = await res.json();
       console.error('Email send failed:', err);
-    } else {
-      console.log('Email sent to:', payload.to_email);
     }
   } catch (e) {
     console.error('Email send failed:', e);
