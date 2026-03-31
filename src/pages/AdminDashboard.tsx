@@ -295,7 +295,7 @@ export default function AdminDashboard() {
           .eq('is_admin', false),
         client
           .from('inventory_submissions')
-          .select('id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, form_data, created_at, updated_at, reviewed_at')
+          .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, form_data, created_at, updated_at, reviewed_at')
       ]);
 
       if (profilesResult.error) throw new Error('Profiles: ' + profilesResult.error.message);
