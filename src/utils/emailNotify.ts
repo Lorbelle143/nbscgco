@@ -1,7 +1,5 @@
 import { supabase } from '../lib/supabase';
 
-const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY || '';
-
 interface EmailPayload {
   to_email: string;
   to_name: string;
@@ -11,22 +9,16 @@ interface EmailPayload {
 
 async function sendBrevoEmail(payload: EmailPayload) {
   try {
-    if (!BREVO_API_KEY) {
-      console.error('Email: VITE_BREVO_API_KEY not set in .env');
-      return;
-    }
-    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+    const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+    const res = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
       method: 'POST',
       headers: {
-        'api-key': BREVO_API_KEY,
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${supabaseAnonKey}`,
+        'apikey': supabaseAnonKey,
       },
-      body: JSON.stringify({
-        sender: { name: 'NBSC Guidance and Counseling Office', email: 'gco@nbsc.edu.ph' },
-        to: [{ email: payload.to_email, name: payload.to_name }],
-        subject: payload.subject,
-        htmlContent: payload.html,
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) {
       const err = await res.json();
