@@ -729,7 +729,7 @@ export default function AdminDashboard() {
             course: formData.programYear,
             year_level: formData.programYear.split(' ')[0] || '1',
             contact_number: formData.mobilePhone,
-            photo_url: formData.photoUrl || 'https://via.placeholder.com/150',
+            photo_url: formData.photoUrl || '',
             form_data: formData,
             google_form_response_id: '',
           });

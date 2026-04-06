@@ -157,8 +157,7 @@ export async function notifySubmissionStatus(studentEmail: string, studentName: 
     </div>
     <p style="color:#374151;font-size:15px;margin:0 0 12px;">${cfg.msg}</p>
     ${remarks ? `<p style="color:#374151;font-size:14px;margin:0 0 20px;"><strong>Remarks:</strong> ${remarks}</p>` : ''}
-    <p style="color:#9ca3af;font-size:13px;margin:0;">For qu
-estions, please visit the Guidance and Counseling Office.</p>
+    <p style="color:#9ca3af;font-size:13px;margin:0;">For questions, please visit the Guidance and Counseling Office.</p>
   `);
 
   await sendBrevoEmail({

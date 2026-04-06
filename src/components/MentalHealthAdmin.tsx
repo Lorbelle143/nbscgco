@@ -27,22 +27,13 @@ export default function MentalHealthAdmin() {
   const loadAssessments = async () => {
     try {
       setLoading(true);
-      console.log('Loading mental health assessments...');
-      
       const { data, error } = await supabase
         .from('mental_health_assessments')
         .select('*')
         .order('created_at', { ascending: false });
-      
-      if (error) {
-        console.error('Error loading assessments:', error);
-        throw error;
-      }
-      
-      console.log('Loaded assessments:', data);
+      if (error) throw error;
       setAssessments(data || []);
     } catch (error: any) {
-      console.error('Failed to load assessments:', error);
       toast.error('Failed to load assessments: ' + error.message);
     } finally {
       setLoading(false);

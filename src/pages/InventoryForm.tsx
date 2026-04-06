@@ -76,18 +76,42 @@ export default function InventoryForm() {
     if (editId && (user || isAdminMode)) {
       loadExistingSubmission(editId);
     } else if (!editId && !isAdminMode && user) {
-      // Block new submissions if student already has one
-      supabase
-        .from('inventory_submissions')
-        .select('id')
-        .eq('user_id', user.id)
-        .limit(1)
-        .then(({ data }) => {
-          if (data && data.length > 0) {
+      // Block new submissions if student already has one — check by both user_id AND student_id
+      const checkExisting = async () => {
+        // First check by user_id
+        const { data: byUserId } = await supabase
+          .from('inventory_submissions')
+          .select('id')
+          .eq('user_id', user.id)
+          .limit(1);
+
+        if (byUserId && byUserId.length > 0) {
+          alert('You have already submitted your inventory form. Only one submission is allowed per student.');
+          navigate('/dashboard');
+          return;
+        }
+
+        // Also check by student_id (handles user_id mismatch case)
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('student_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profile?.student_id) {
+          const { data: byStudentId } = await supabase
+            .from('inventory_submissions')
+            .select('id')
+            .eq('student_id', profile.student_id)
+            .limit(1);
+
+          if (byStudentId && byStudentId.length > 0) {
             alert('You have already submitted your inventory form. Only one submission is allowed per student.');
             navigate('/dashboard');
           }
-        });
+        }
+      };
+      checkExisting();
     }
   }, [editId, user, isAdminMode]);
 
@@ -365,7 +389,7 @@ export default function InventoryForm() {
         course: formData.programYear,
         year_level: formData.programYear.split(' ')[0] || '',
         contact_number: formData.mobilePhone,
-        photo_url: photoUrl || 'https://via.placeholder.com/150?text=No+Photo',
+        photo_url: photoUrl || '',
         form_data: { ...formData },
         google_form_response_id: '',
       };
@@ -1391,37 +1415,83 @@ export default function InventoryForm() {
 
                   return (
                     <div className="space-y-6">
+                      {/* WHODAS Live Score Summary */}
+                      {(() => {
+                        const allItems = domains.flatMap(d => d.items);
+                        const answered = allItems.filter(i => formData.whodas[i.id] !== undefined).length;
+                        const total = allItems.reduce((sum, i) => sum + (formData.whodas[i.id] ?? 0), 0);
+                        const maxScore = allItems.length * 4; // 36 items × 4 = 144
+                        const pct = Math.round((total / maxScore) * 100);
+                        const severity = total === 0 ? { label: 'No Disability', color: 'text-green-700', bg: 'bg-green-50 border-green-200' }
+                          : total <= 20 ? { label: 'Mild Disability', color: 'text-yellow-700', bg: 'bg-yellow-50 border-yellow-200' }
+                          : total <= 40 ? { label: 'Moderate Disability', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' }
+                          : { label: 'Severe Disability', color: 'text-red-700', bg: 'bg-red-50 border-red-200' };
+                        return (
+                          <div className={`rounded-xl border-2 p-4 ${severity.bg}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-bold text-gray-700">WHODAS 2.0 Total Score</span>
+                              <span className={`text-sm font-bold px-3 py-1 rounded-full ${severity.bg} ${severity.color} border`}>{severity.label}</span>
+                            </div>
+                            <div className="flex items-end gap-3 mb-2">
+                              <span className={`text-4xl font-black ${severity.color}`}>{total}</span>
+                              <span className="text-gray-400 text-lg mb-1">/ {maxScore}</span>
+                              <span className="text-gray-400 text-sm mb-1.5">({answered}/{allItems.length} answered)</span>
+                            </div>
+                            <div className="w-full bg-white rounded-full h-3 border border-gray-200">
+                              <div className={`h-3 rounded-full transition-all duration-300 ${total === 0 ? 'bg-green-400' : total <= 20 ? 'bg-yellow-400' : total <= 40 ? 'bg-orange-400' : 'bg-red-500'}`}
+                                style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 mt-3 text-xs text-gray-500">
+                              <span>0–20: Mild</span>
+                              <span className="text-center">21–40: Moderate</span>
+                              <span className="text-right">41–144: Severe</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* Column headers */}
                       <div className="hidden md:grid md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-1 text-xs font-bold text-center text-gray-600 border-b pb-2">
                         <div className="text-left">Question</div>
                         {opts.map(o => <div key={o}>{o}</div>)}
                       </div>
 
-                      {domains.map(domain => (
-                        <div key={domain.title}>
-                          <div className="bg-teal-600 text-white text-sm font-bold px-3 py-2 rounded-t-lg">{domain.title}</div>
-                          <div className="border border-teal-200 rounded-b-lg overflow-hidden">
-                            {domain.items.map((item, idx) => (
-                              <div key={item.id} className={`grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-1 items-center px-3 py-2 ${idx % 2 === 0 ? 'bg-white' : 'bg-teal-50'}`}>
-                                <div className="text-sm text-gray-700"><span className="font-semibold text-teal-700 mr-1">{item.id}</span>{item.text}</div>
-                                {[0,1,2,3,4].map(val => (
-                                  <label key={val} className="flex flex-col items-center gap-1 cursor-pointer">
-                                    <span className="md:hidden text-xs text-gray-500">{opts[val]}</span>
-                                    <input
-                                      type="radio"
-                                      name={`whodas_${item.id}`}
-                                      value={val}
-                                      checked={(formData.whodas[item.id] ?? -1) === val}
-                                      onChange={() => setFormData(prev => ({ ...prev, whodas: { ...prev.whodas, [item.id]: val } }))}
-                                      className="w-4 h-4 accent-teal-600"
-                                    />
-                                  </label>
-                                ))}
-                              </div>
-                            ))}
+                      {domains.map(domain => {
+                        const domainTotal = domain.items.reduce((sum, i) => sum + (formData.whodas[i.id] ?? 0), 0);
+                        const domainMax = domain.items.length * 4;
+                        const domainAnswered = domain.items.filter(i => formData.whodas[i.id] !== undefined).length;
+                        return (
+                          <div key={domain.title}>
+                            <div className="bg-teal-600 text-white text-sm font-bold px-3 py-2 rounded-t-lg flex items-center justify-between">
+                              <span>{domain.title}</span>
+                              <span className="text-teal-100 text-xs font-normal">
+                                Subtotal: <span className="font-bold text-white">{domainTotal}/{domainMax}</span>
+                                {domainAnswered < domain.items.length && <span className="ml-1 opacity-70">({domainAnswered}/{domain.items.length})</span>}
+                              </span>
+                            </div>
+                            <div className="border border-teal-200 rounded-b-lg overflow-hidden">
+                              {domain.items.map((item, idx) => (
+                                <div key={item.id} className={`grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_1fr_1fr] gap-1 items-center px-3 py-2 ${idx % 2 === 0 ? 'bg-white' : 'bg-teal-50'}`}>
+                                  <div className="text-sm text-gray-700"><span className="font-semibold text-teal-700 mr-1">{item.id}</span>{item.text}</div>
+                                  {[0,1,2,3,4].map(val => (
+                                    <label key={val} className="flex flex-col items-center gap-1 cursor-pointer">
+                                      <span className="md:hidden text-xs text-gray-500">{opts[val]}</span>
+                                      <input
+                                        type="radio"
+                                        name={`whodas_${item.id}`}
+                                        value={val}
+                                        checked={(formData.whodas[item.id] ?? -1) === val}
+                                        onChange={() => setFormData(prev => ({ ...prev, whodas: { ...prev.whodas, [item.id]: val } }))}
+                                        className="w-4 h-4 accent-teal-600"
+                                      />
+                                    </label>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
 
                       {/* H1-H3 summary questions */}
                       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-4">
@@ -1507,6 +1577,46 @@ export default function InventoryForm() {
 
                   return (
                     <div className="space-y-3">
+                      {/* PID-5 Live Score Summary with domain breakdown */}
+                      {(() => {
+                        const pid5Domains = [
+                          { name: 'Negative Affect', indices: [7, 8, 9, 14, 17], color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
+                          { name: 'Detachment',      indices: [3, 12, 13, 15, 17], color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
+                          { name: 'Antagonism',      indices: [16, 19, 21, 22, 24], color: 'text-red-700', bg: 'bg-red-50 border-red-200' },
+                          { name: 'Disinhibition',   indices: [0, 1, 2, 4, 5], color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
+                          { name: 'Psychoticism',    indices: [6, 11, 20, 22, 23], color: 'text-violet-700', bg: 'bg-violet-50 border-violet-200' },
+                        ];
+                        const grandTotal = Object.values(formData.pid5).reduce((a: number, b: number) => a + b, 0);
+                        const totalAnswered = Object.keys(formData.pid5).length;
+                        return (
+                          <div className="bg-violet-50 border-2 border-violet-200 rounded-xl p-4 mb-2">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-bold text-gray-700">PID-5-BF Total Score</span>
+                              <span className="text-xs text-gray-500">{totalAnswered}/25 answered</span>
+                            </div>
+                            <div className="flex items-end gap-3 mb-3">
+                              <span className="text-4xl font-black text-violet-700">{grandTotal}</span>
+                              <span className="text-gray-400 text-lg mb-1">/ 75</span>
+                            </div>
+                            <div className="w-full bg-white rounded-full h-3 border border-violet-200 mb-4">
+                              <div className="h-3 rounded-full bg-violet-500 transition-all duration-300"
+                                style={{ width: `${Math.round((grandTotal / 75) * 100)}%` }} />
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                              {pid5Domains.map(d => {
+                                const sub = d.indices.reduce((sum, i) => sum + (formData.pid5[i] ?? 0), 0);
+                                return (
+                                  <div key={d.name} className={`${d.bg} rounded-lg p-2 text-center border`}>
+                                    <p className={`text-xs font-bold ${d.color} mb-1`}>{d.name}</p>
+                                    <p className={`text-xl font-black ${d.color}`}>{sub}<span className="text-xs font-normal text-gray-400">/15</span></p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {/* Header row */}
                       <div className="hidden md:grid md:grid-cols-[2.5fr_1fr_1fr_1fr_1fr] gap-1 text-xs font-bold text-center text-gray-600 border-b pb-2">
                         <div className="text-left">Statement Indicator</div>
@@ -1534,15 +1644,6 @@ export default function InventoryForm() {
                           ))}
                         </div>
                       ))}
-
-                      {/* Score summary */}
-                      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-4">
-                        <p className="text-sm font-bold text-gray-700 mb-1">Score Summary</p>
-                        <p className="text-sm text-gray-600">
-                          Items answered: {Object.keys(formData.pid5).length} / 25 &nbsp;|&nbsp;
-                          Total/Partial Raw Score: {Object.values(formData.pid5).reduce((a: number, b: number) => a + b, 0)}
-                        </p>
-                      </div>
                     </div>
                   );
                 })()}

@@ -165,8 +165,6 @@ export default function MentalHealthAssessment() {
       let data, error;
 
       if (editMode && editId) {
-        // Update existing assessment
-        console.log('Updating assessment:', editId);
         const result = await supabase
           .from('mental_health_assessments')
           .update({
@@ -184,8 +182,6 @@ export default function MentalHealthAssessment() {
         data = result.data;
         error = result.error;
       } else {
-        // Create new assessment
-        console.log('Creating new assessment:', assessmentData);
         const result = await supabase
           .from('mental_health_assessments')
           .insert(assessmentData)
@@ -196,12 +192,7 @@ export default function MentalHealthAssessment() {
         error = result.error;
       }
 
-      if (error) {
-        console.error('Supabase error:', error);
-        throw error;
-      }
-
-      console.log('Assessment saved successfully:', data);
+      if (error) throw error;
 
       // Store results for modal
       setAssessmentResults({
@@ -250,7 +241,6 @@ export default function MentalHealthAssessment() {
   };
 
   const handleCancel = () => {
-    console.log('Cancel clicked, navigating to dashboard');
     navigate('/dashboard');
   };
 

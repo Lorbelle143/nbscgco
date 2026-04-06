@@ -100,13 +100,45 @@ export default function StudentDashboard() {
     if (!user) return;
     try {
       setLoading(true);
+
+      // First try by user_id (correct path)
       const { data, error } = await supabase
         .from('inventory_submissions')
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
+
+      // If nothing found by user_id, fallback to student_id
+      // This handles cases where submission was saved with wrong/null user_id
+      if (!data || data.length === 0) {
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('student_id')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (profileData?.student_id) {
+          const { data: byStudentId } = await supabase
+            .from('inventory_submissions')
+            .select('*')
+            .eq('student_id', profileData.student_id)
+            .order('created_at', { ascending: false });
+
+          if (byStudentId && byStudentId.length > 0) {
+            // Fix the user_id so future queries work correctly
+            await supabase
+              .from('inventory_submissions')
+              .update({ user_id: user.id })
+              .eq('student_id', profileData.student_id);
+
+            setSubmissions(byStudentId);
+            return;
+          }
+        }
+      }
+
       setSubmissions(data || []);
     } catch (error: any) {
       toast.error('Failed to load submissions');
@@ -413,10 +445,16 @@ export default function StudentDashboard() {
                     </svg>
                   </div>
                   <h2 className="text-2xl font-bold text-gray-800 mb-2">Already Submitted</h2>
-                  <p className="text-gray-500 mb-6">You have already submitted your inventory form. Only one submission is allowed per student.</p>
+                  <p className="text-gray-500 mb-6">You have already submitted your inventory form. You can edit it below.</p>
+                  <button
+                    onClick={() => navigate(`/inventory-form?edit=${submissions[0].id}`)}
+                    className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-3 rounded-xl font-semibold hover:from-amber-600 hover:to-orange-600 transition shadow-md mb-3"
+                  >
+                    ✏️ Edit My Submission
+                  </button>
                   <button
                     onClick={() => setActiveView('dashboard')}
-                    className="w-full bg-gradient-to-r from-gray-500 to-gray-600 text-white py-3 rounded-xl font-semibold hover:from-gray-600 hover:to-gray-700 transition shadow-md"
+                    className="w-full bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 py-3 rounded-xl font-semibold hover:from-gray-200 hover:to-gray-300 transition"
                   >
                     View My Submission
                   </button>
