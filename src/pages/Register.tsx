@@ -345,7 +345,7 @@ export default function Register() {
                           </svg>
                         </div>
                         <input type="email" name="email" value={formData.email} onChange={handleChange}
-                          placeholder="20201362@nbsc.edu.ph"
+                          placeholder="studentid@nbsc.edu.ph"
                           className={`input-field ${emailError ? 'border-red-400' : ''}`} required />
                       </div>
                       {emailError

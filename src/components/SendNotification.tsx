@@ -261,6 +261,13 @@ export default function SendNotification({ students }: Props) {
             </div>
           </div>
 
+          {/* Brevo limit warning for broadcast */}
+          {target === 'all' && sendEmail && students.length > 200 && (
+            <div className="bg-amber-50 border border-amber-300 rounded-xl p-3 text-xs text-amber-800">
+              ⚠️ You have {students.length} students. Brevo free plan allows 300 emails/day. Broadcasting to all may use most of your daily limit.
+            </div>
+          )}
+
           {/* Send button */}
           <button
             onClick={handleSend}
