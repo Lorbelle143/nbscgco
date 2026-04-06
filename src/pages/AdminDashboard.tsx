@@ -131,7 +131,8 @@ export default function AdminDashboard() {
   }, []);
 
   const loadAdminProfile = async () => {
-    if (!user?.id) return;
+    // Skip profile load for pseudo-admin (master key login — no real UUID)
+    if (!user?.id || user.id === 'admin') return;
     try {
       const { data } = await supabase
         .from('profiles')
@@ -2618,52 +2619,144 @@ function StudentModal({ mode, submission, onClose, onSave }: any) {
                   </div>
                 </div>
               ) : (
-                // Inventory Submission View
-                <div className="flex gap-6">
-                  <div className="w-48 h-48 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                    {submission?.photo_url ? (
-                      <img src={submission.photo_url} alt="Student" className="w-full h-full object-cover" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">No Photo</div>
-                    )}
+                // Inventory Submission View — FULL DATA
+                <div className="space-y-6">
+                  {/* Header: Photo + Basic */}
+                  <div className="flex flex-col sm:flex-row gap-6 p-5 bg-gradient-to-r from-orange-50 to-red-50 rounded-xl border border-orange-100">
+                    <div className="w-36 h-36 bg-gray-200 rounded-xl overflow-hidden flex-shrink-0 border-2 border-white shadow-md mx-auto sm:mx-0">
+                      {submission?.photo_url
+                        ? <img src={submission.photo_url} alt="Student" className="w-full h-full object-cover" />
+                        : <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">👤</div>
+                      }
+                    </div>
+                    <div className="flex-1 grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-500">Full Name</p>
+                        <p className="text-xl font-bold text-gray-800">{formData.lastName}, {formData.firstName} {formData.middleInitial}</p>
+                      </div>
+                      <div><p className="text-xs text-gray-500">Student ID</p><p className="font-semibold">{formData.idNo || submission?.student_id}</p></div>
+                      <div><p className="text-xs text-gray-500">Program & Year</p><p className="font-semibold">{formData.programYear || submission?.course}</p></div>
+                      <div><p className="text-xs text-gray-500">Gender</p><p className="font-semibold">{formData.gender || 'N/A'}</p></div>
+                      <div><p className="text-xs text-gray-500">Civil Status</p><p className="font-semibold">{formData.civilStatus || 'N/A'}</p></div>
+                      <div><p className="text-xs text-gray-500">Mobile</p><p className="font-semibold">{formData.mobilePhone || submission?.contact_number}</p></div>
+                      <div><p className="text-xs text-gray-500">Birth Date</p><p className="font-semibold">{formData.birthDate || 'N/A'}</p></div>
+                    </div>
                   </div>
-                  <div className="flex-1 grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">Student ID</label>
-                      <p className="text-lg font-semibold">{submission?.student_id}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">Full Name</label>
-                      <p className="text-lg font-semibold">{submission?.full_name}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">Course</label>
-                      <p className="text-lg">{submission?.course}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">Year Level</label>
-                      <p className="text-lg">{submission?.year_level}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">Contact Number</label>
-                      <p className="text-lg">{submission?.contact_number}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">Birth Date</label>
-                      <p className="text-lg">{formData.birthDate || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">Gender</label>
-                      <p className="text-lg">{formData.gender || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-gray-600">Civil Status</label>
-                      <p className="text-lg">{formData.civilStatus || 'N/A'}</p>
-                    </div>
-                    <div className="col-span-2">
-                      <label className="text-sm font-medium text-gray-600">Address</label>
-                      <p className="text-lg">{formData.permanentAddress || 'N/A'}</p>
-                    </div>
+
+                  {/* Section helper */}
+                  {(() => {
+                    const Sec = ({ title }: { title: string }) => (
+                      <h3 className="text-xs font-bold text-white bg-gradient-to-r from-orange-600 to-red-600 px-3 py-1.5 rounded-lg uppercase tracking-wide col-span-full">{title}</h3>
+                    );
+                    const F = ({ label, value }: { label: string; value?: string | null }) => {
+                      if (!value) return null;
+                      return (
+                        <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-100">
+                          <p className="text-xs text-gray-400 mb-0.5">{label}</p>
+                          <p className="text-sm font-semibold text-gray-800 break-words">{value}</p>
+                        </div>
+                      );
+                    };
+                    return (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        <Sec title="Contact Information" />
+                        <F label="Personal Email" value={formData.personalEmail} />
+                        <F label="Institutional Email" value={formData.institutionalEmail} />
+                        <F label="Permanent Address" value={formData.permanentAddress} />
+                        {!formData.currentAddressSame && <F label="Current Address" value={formData.currentAddress} />}
+                        <F label="Religion" value={formData.religion} />
+                        <F label="Ethnicity" value={formData.ethnicity} />
+
+                        <Sec title="Family Background" />
+                        <F label="Parents Status" value={formData.parentsStatus} />
+                        <F label="No. of Siblings" value={formData.numberOfSiblings} />
+                        <F label="Birth Order" value={formData.birthOrder} />
+                        <F label="Mother's Name" value={formData.motherName} />
+                        <F label="Mother's Age" value={formData.motherAge} />
+                        <F label="Mother's Occupation" value={formData.motherOccupation} />
+                        <F label="Mother's Income" value={formData.motherIncome} />
+                        <F label="Mother's Contact" value={formData.motherContact} />
+                        <F label="Father's Name" value={formData.fatherName} />
+                        <F label="Father's Age" value={formData.fatherAge} />
+                        <F label="Father's Occupation" value={formData.fatherOccupation} />
+                        <F label="Father's Income" value={formData.fatherIncome} />
+                        <F label="Father's Contact" value={formData.fatherContact} />
+                        {formData.guardianName && <F label="Guardian's Name" value={formData.guardianName} />}
+                        {formData.guardianName && <F label="Guardian's Occupation" value={formData.guardianOccupation} />}
+                        {formData.guardianName && <F label="Guardian's Contact" value={formData.guardianContact} />}
+                        {formData.guardianName && <F label="Guardian's Address" value={formData.guardianAddress} />}
+
+                        <Sec title="Educational Background" />
+                        <F label="Elementary School" value={formData.elementarySchool} />
+                        <F label="Elementary Years" value={formData.elementaryYears} />
+                        <F label="Elementary Awards" value={formData.elementaryAwards} />
+                        <F label="Junior High School" value={formData.juniorHighSchool} />
+                        <F label="Junior High Years" value={formData.juniorHighYears} />
+                        <F label="Junior High Awards" value={formData.juniorHighAwards} />
+                        <F label="Senior High School" value={formData.seniorHighSchool} />
+                        <F label="Senior High Years" value={formData.seniorHighYears} />
+                        <F label="Senior High Awards" value={formData.seniorHighAwards} />
+
+                        <Sec title="Interests & Activities" />
+                        <F label="Hobbies" value={formData.hobbies} />
+                        <F label="Talents" value={formData.talents} />
+                        <F label="Sports" value={formData.sports} />
+                        <F label="Socio-Civic" value={formData.socioCivic} />
+                        <F label="School Organizations" value={formData.schoolOrg} />
+
+                        <Sec title="Health History" />
+                        <F label="Hospitalized" value={formData.hospitalized} />
+                        {formData.hospitalized === 'Yes' && <F label="Hospitalization Reason" value={formData.hospitalizationReason} />}
+                        <F label="Surgery" value={formData.surgery} />
+                        {formData.surgery === 'Yes' && <F label="Surgery Reason" value={formData.surgeryReason} />}
+                        <F label="Chronic Illness" value={formData.chronicIllness} />
+                        <F label="Family Illness" value={formData.familyIllness} />
+                        <F label="Last Doctor Visit" value={formData.lastDoctorVisit} />
+
+                        {formData.lifeCircumstances?.length > 0 && <>
+                          <Sec title="Life Circumstances" />
+                          <div className="col-span-full flex flex-wrap gap-2">
+                            {formData.lifeCircumstances.map((item: string) => (
+                              <span key={item} className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-medium">{item}</span>
+                            ))}
+                            {formData.lifeCircumstancesOthers && <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">{formData.lifeCircumstancesOthers}</span>}
+                          </div>
+                        </>}
+
+                        {formData.counselorRemarks && <>
+                          <Sec title="Counselor Remarks" />
+                          <div className="col-span-full bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">{formData.counselorRemarks}</div>
+                        </>}
+
+                        {/* WHODAS Score */}
+                        {formData.whodas && Object.keys(formData.whodas).length > 0 && <>
+                          <Sec title="WHODAS 2.0 Score" />
+                          <div className="col-span-full bg-teal-50 border border-teal-200 rounded-lg p-3">
+                            <p className="text-sm font-bold text-teal-700">
+                              Total: {Object.values(formData.whodas as Record<string, number>).reduce((a, b) => a + b, 0)} / {Object.keys(formData.whodas).length * 4}
+                              <span className="text-xs font-normal text-teal-500 ml-2">({Object.keys(formData.whodas).length}/36 items answered)</span>
+                            </p>
+                          </div>
+                        </>}
+
+                        {/* PID-5 Score */}
+                        {formData.pid5 && Object.keys(formData.pid5).length > 0 && <>
+                          <Sec title="PID-5-BF Score" />
+                          <div className="col-span-full bg-violet-50 border border-violet-200 rounded-lg p-3">
+                            <p className="text-sm font-bold text-violet-700">
+                              Total: {Object.values(formData.pid5 as Record<string, number>).reduce((a, b) => a + b, 0)} / 75
+                              <span className="text-xs font-normal text-violet-500 ml-2">({Object.keys(formData.pid5).length}/25 items answered)</span>
+                            </p>
+                          </div>
+                        </>}
+                      </div>
+                    );
+                  })()}
+
+                  <div className="text-xs text-gray-400 pt-2 border-t">
+                    Submitted: {new Date(submission?.created_at).toLocaleString('en-PH', { dateStyle: 'long', timeStyle: 'short' })}
+                    {submission?.updated_at && submission.updated_at !== submission.created_at &&
+                      ` · Updated: ${new Date(submission.updated_at).toLocaleString('en-PH', { dateStyle: 'long', timeStyle: 'short' })}`}
                   </div>
                 </div>
               )}
