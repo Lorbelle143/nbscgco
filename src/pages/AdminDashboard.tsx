@@ -659,12 +659,11 @@ export default function AdminDashboard() {
         .eq('id', selectedSubmission.id);
 
       if (error) throw error;
-      alert('✅ Student updated successfully');
+      toast.success('Student updated successfully');
       setShowModal(false);
       loadData();
     } catch (error: any) {
-      console.error('Update error:', error);
-      alert('❌ Error updating student: ' + (error.message || 'Unknown error'));
+      toast.error('Error updating student: ' + (error.message || 'Unknown error'));
     }
   };
 
@@ -707,12 +706,11 @@ export default function AdminDashboard() {
         }
       }
 
-      alert('✅ Record deleted successfully');
+      toast.success('Record deleted successfully');
       await logAudit('delete', 'inventory_submission', id, `Deleted submission for ${studentName}`);
-      loadData(); // Reload the data
+      loadData();
     } catch (error: any) {
-      console.error('Delete error:', error);
-      alert('❌ Error deleting record: ' + (error.message || 'Unknown error'));
+      toast.error('Error deleting record: ' + (error.message || 'Unknown error'));
     }
   };
 
@@ -737,7 +735,7 @@ export default function AdminDashboard() {
           });
 
         if (error) throw error;
-        alert('✅ Record created successfully');
+        toast.success('Record created successfully');
       } else if (modalMode === 'edit') {
         // Build the full name from the form data
         const fullName = `${formData.firstName} ${formData.middleInitial} ${formData.lastName}`.trim();
@@ -783,14 +781,13 @@ export default function AdminDashboard() {
           .eq('id', selectedSubmission.id);
 
         if (error) throw error;
-        alert('✅ Record updated successfully');
+        toast.success('Record updated successfully');
       }
 
       setShowModal(false);
       loadData();
     } catch (error: any) {
-      console.error('Save error:', error);
-      alert('❌ Error saving record: ' + (error.message || 'Unknown error'));
+      toast.error('Error saving record: ' + (error.message || 'Unknown error'));
     }
   };
 
@@ -2520,6 +2517,7 @@ export default function AdminDashboard() {
 
 // Student Modal Component
 function StudentModal({ mode, submission, onClose, onSave }: any) {
+  const toast = useToastContext();
   const formData = submission?.form_data || {};
   const isStudentProfile = formData.email && !submission?.course; // Check if it's a student profile view
   
@@ -2553,7 +2551,7 @@ function StudentModal({ mode, submission, onClose, onSave }: any) {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert('Photo size must be less than 5MB');
+        toast.error('Photo size must be less than 5MB');
         return;
       }
       setPhotoFile(file);
@@ -2573,7 +2571,7 @@ function StudentModal({ mode, submission, onClose, onSave }: any) {
       try {
         finalPhotoUrl = await uploadToCloudinary(photoFile, 'nbsc-gco/student-photos');
       } catch (error: any) {
-        alert('Error uploading photo: ' + error.message);
+        toast.error('Error uploading photo: ' + error.message);
         return;
       }
     }

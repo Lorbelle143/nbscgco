@@ -4,10 +4,12 @@ import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import { useToastContext } from '../contexts/ToastContext';
 
 export default function InventoryForm() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
+  const toast = useToastContext();
   const [searchParams] = useSearchParams();
   const editId = searchParams.get('edit');
   const isAdminMode = searchParams.get('admin') === 'true'; // Check if admin is creating
@@ -84,7 +86,7 @@ export default function InventoryForm() {
           .limit(1);
 
         if (byUserId && byUserId.length > 0) {
-          alert('You have already submitted your inventory form. Only one submission is allowed per student.');
+          toast.error('You have already submitted your inventory form. Only one submission is allowed per student.');
           navigate('/dashboard');
           return;
         }
@@ -104,7 +106,7 @@ export default function InventoryForm() {
             .limit(1);
 
           if (byStudentId && byStudentId.length > 0) {
-            alert('You have already submitted your inventory form. Only one submission is allowed per student.');
+            toast.error('You have already submitted your inventory form. Only one submission is allowed per student.');
             navigate('/dashboard');
           }
         }
@@ -402,7 +404,7 @@ export default function InventoryForm() {
 
         if (dbError) throw dbError;
         setIsDirty(false);
-        alert('✅ Submission updated successfully!');
+        toast.success('Submission updated successfully!');
       } else {
         // Insert — include user_id only if it's a valid UUID
         const isValidUUID = userId && userId !== 'admin' && /^[0-9a-f-]{36}$/i.test(userId);
@@ -415,7 +417,7 @@ export default function InventoryForm() {
 
         if (dbError) throw dbError;
         setIsDirty(false);
-        alert('✅ Form submitted successfully!');
+        toast.success('Form submitted successfully!');
       }
 
       // Navigate back based on mode
