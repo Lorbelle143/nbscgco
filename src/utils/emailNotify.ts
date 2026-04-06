@@ -275,3 +275,47 @@ export async function notifyAdminPasswordResetRequest(
     html,
   });
 }
+
+export async function notifyCustomAnnouncement(
+  studentEmail: string,
+  studentName: string,
+  title: string,
+  message: string,
+  type: string
+) {
+  const typeIcons: Record<string, string> = {
+    general: '📢',
+    submission_approved: '✅',
+    submission_needs_revision: '✏️',
+    submission_under_review: '🔍',
+    counseling_scheduled: '📅',
+    mental_health_flagged: '🧠',
+  };
+  const typeColors: Record<string, string> = {
+    general: '#6b7280',
+    submission_approved: '#16a34a',
+    submission_needs_revision: '#d97706',
+    submission_under_review: '#2563eb',
+    counseling_scheduled: '#4f46e5',
+    mental_health_flagged: '#7c3aed',
+  };
+
+  const icon = typeIcons[type] || '📢';
+  const color = typeColors[type] || '#1a3a6b';
+
+  const html = baseTemplate(`
+    <p style="color:#374151;font-size:15px;margin:0 0 12px;">Dear <strong>${studentName}</strong>,</p>
+    <div style="background:${color}20;border:2px solid ${color};border-radius:12px;padding:14px 20px;margin-bottom:20px;text-align:center;">
+      <p style="color:${color};font-weight:bold;font-size:16px;margin:0;">${icon} ${title}</p>
+    </div>
+    <p style="color:#374151;font-size:15px;margin:0 0 20px;white-space:pre-line;">${message}</p>
+    <p style="color:#9ca3af;font-size:13px;margin:0;">For questions, please visit the Guidance and Counseling Office.</p>
+  `);
+
+  await sendBrevoEmail({
+    to_email: studentEmail,
+    to_name: studentName,
+    subject: `${icon} ${title} — NBSC Guidance Office`,
+    html,
+  });
+}

@@ -13,6 +13,7 @@ import MentalHealthTrends from '../components/MentalHealthTrends';
 import CounselingSessionNotes from '../components/CounselingSessionNotes';
 import ConsentTracker from '../components/ConsentTracker';
 import ReportsExport from '../components/ReportsExport';
+import SendNotification from '../components/SendNotification';
 import { printSubmission } from '../utils/printUtils';
 import { SkeletonDashboard } from '../components/SkeletonLoader';
 import { exportSubmissionPDF, exportAllSubmissionsPDF } from '../utils/pdfUtils';
@@ -41,7 +42,7 @@ export default function AdminDashboard() {
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<'view' | 'create' | 'edit'>('view');
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<'submissions' | 'students' | 'analytics' | 'users' | 'mental-health' | 'reset-requests' | 'follow-up' | 'mh-trends' | 'bulk-import' | 'audit-log' | 'session-notes' | 'consent' | 'reports'>('submissions');
+  const [viewMode, setViewMode] = useState<'submissions' | 'students' | 'analytics' | 'users' | 'mental-health' | 'reset-requests' | 'follow-up' | 'mh-trends' | 'bulk-import' | 'audit-log' | 'session-notes' | 'consent' | 'reports' | 'send-notification'>('submissions');
   const [actionLoading, setActionLoading] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
@@ -1101,10 +1102,19 @@ export default function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => { setViewMode('audit-log'); loadAuditLogs(); }}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${viewMode === 'audit-log' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+            onClick={() => setViewMode('send-notification')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${viewMode === 'send-notification' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+            <span className="font-medium text-sm">Send Notification</span>
+          </button>
+
+          <button
+            onClick={() => { setViewMode('audit-log'); loadAuditLogs(); }}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${viewMode === 'audit-log' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          >            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
             <span className="font-medium text-sm">Audit Log</span>
@@ -1160,6 +1170,7 @@ export default function AdminDashboard() {
                 {viewMode === 'session-notes' && 'Counseling Session Notes'}
                 {viewMode === 'consent' && 'Informed Consent Tracker'}
                 {viewMode === 'reports' && 'Reports & Export'}
+                {viewMode === 'send-notification' && 'Send Notification'}
               </h2>
             </div>
           </div>
@@ -1311,6 +1322,11 @@ export default function AdminDashboard() {
         {/* Reports & Export View */}
         {viewMode === 'reports' && (
           <ReportsExport />
+        )}
+
+        {/* Send Notification View */}
+        {viewMode === 'send-notification' && (
+          <SendNotification students={students} />
         )}
 
         {/* Bulk Import View */}
