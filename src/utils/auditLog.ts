@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 
-export type AuditAction = 'create' | 'update' | 'delete' | 'view' | 'export';
+export type AuditAction = 'create' | 'update' | 'delete' | 'view' | 'export' | 'print';
 
 export async function logAudit(
   action: AuditAction,
@@ -14,6 +14,9 @@ export async function logAudit(
       action,
       entity,
       entity_id: entityId,
+      // also populate old column names in case DB hasn't been migrated yet
+      table_name: entity,
+      record_id: entityId,
       details,
       performed_by: performedBy || 'admin',
       performed_at: new Date().toISOString(),

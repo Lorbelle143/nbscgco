@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import DocumentScanner from '../components/DocumentScanner';
 
 export default function InventoryForm() {
   const { user } = useAuthStore();
@@ -54,6 +55,7 @@ export default function InventoryForm() {
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
 
   // Enable session timeout protection (always call hook, but it checks isAdminMode internally)
   useSessionTimeout();
@@ -1300,6 +1302,22 @@ export default function InventoryForm() {
             {/* Section 2: Assessments & Consent — WHODAS 2.0 + PID-5-BF + Counseling Consent */}
             {currentSection === 2 && (
               <div className="space-y-10">
+                {/* Document Upload */}
+                <div className="bg-white border-2 border-dashed border-blue-200 rounded-2xl p-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center text-white shadow-lg">
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-gray-800">Supporting Documents</h3>
+                      <p className="text-sm text-gray-500">Optional — upload photos or PDFs of supporting documents</p>
+                    </div>
+                  </div>
+                  <DocumentScanner onDocumentsChange={setDocumentFiles} maxDocuments={4} />
+                </div>
+
                 <div className="flex items-center gap-3 pb-4 border-b-2 border-teal-100">
                   <div className="w-10 h-10 bg-gradient-to-br from-teal-500 to-cyan-500 rounded-lg flex items-center justify-center text-white shadow-lg">
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

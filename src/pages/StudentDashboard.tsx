@@ -1418,55 +1418,141 @@ function EditProfileInline({ profile, userId, onSaved }: { profile: any; userId:
 }
 
 function ViewSubmissionModal({ submission, onClose }: any) {
-  const formData = submission.form_data || {};
+  const f = submission.form_data || {};
+
+  const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
+    <div className="mb-6">
+      <h3 className="text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 rounded-lg mb-3 uppercase tracking-wide">{title}</h3>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">{children}</div>
+    </div>
+  );
+
+  const Field = ({ label, value }: { label: string; value?: string | number | boolean | null }) => {
+    if (!value && value !== 0) return null;
+    return (
+      <div className="bg-gray-50 rounded-lg p-3 border border-gray-100">
+        <p className="text-xs text-gray-500 font-medium mb-0.5">{label}</p>
+        <p className="text-sm font-semibold text-gray-800 break-words">{String(value)}</p>
+      </div>
+    );
+  };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
-          <h2 className="text-2xl font-bold text-gray-800">Submission Details</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-700 text-2xl">
-            ×
-          </button>
+    <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center z-10 rounded-t-2xl">
+          <h2 className="text-xl font-bold text-gray-800">Submission Details</h2>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700 text-xl transition">×</button>
         </div>
 
-        <div className="p-6 space-y-6">
-          {/* Photo */}
-          <div className="flex gap-6">
-            <div className="w-48 h-48 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-              {submission.photo_url ? (
-                <img src={submission.photo_url} alt="Student" className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">No Photo</div>
-              )}
+        <div className="p-6">
+          {/* Header: Photo + Basic Info */}
+          <div className="flex flex-col sm:flex-row gap-6 mb-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100">
+            <div className="w-32 h-32 sm:w-40 sm:h-40 bg-gray-200 rounded-xl overflow-hidden flex-shrink-0 border-2 border-white shadow-md mx-auto sm:mx-0">
+              {submission.photo_url
+                ? <img src={submission.photo_url} alt="Student" className="w-full h-full object-cover" />
+                : <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">👤</div>
+              }
             </div>
-            <div className="flex-1 grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-medium text-gray-600">Full Name</label>
-                <p className="text-lg font-semibold">{formData.firstName} {formData.middleInitial} {formData.lastName}</p>
+            <div className="flex-1 grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <p className="text-xs text-gray-500">Full Name</p>
+                <p className="text-xl font-bold text-gray-800">{f.lastName}, {f.firstName} {f.middleInitial}</p>
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Student ID</label>
-                <p className="text-lg">{formData.idNo}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Program & Year</label>
-                <p className="text-lg">{formData.programYear}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-600">Contact</label>
-                <p className="text-lg">{formData.mobilePhone}</p>
-              </div>
+              <div><p className="text-xs text-gray-500">Student ID</p><p className="font-semibold text-gray-700">{f.idNo || submission.student_id}</p></div>
+              <div><p className="text-xs text-gray-500">Program & Year</p><p className="font-semibold text-gray-700">{f.programYear || `${submission.course} - ${submission.year_level}`}</p></div>
+              <div><p className="text-xs text-gray-500">Gender</p><p className="font-semibold text-gray-700">{f.gender}</p></div>
+              <div><p className="text-xs text-gray-500">Civil Status</p><p className="font-semibold text-gray-700">{f.civilStatus}</p></div>
+              <div><p className="text-xs text-gray-500">Mobile</p><p className="font-semibold text-gray-700">{f.mobilePhone || submission.contact_number}</p></div>
+              <div><p className="text-xs text-gray-500">Submitted</p><p className="font-semibold text-gray-700">{new Date(submission.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</p></div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <button
-              onClick={onClose}
-              className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-            >
-              Close
-            </button>
+          {/* Personal Info */}
+          <Section title="Personal Information">
+            <Field label="Birth Date" value={f.birthDate} />
+            <Field label="Religion" value={f.religion} />
+            <Field label="Ethnicity" value={f.ethnicity} />
+            <Field label="Personal Email" value={f.personalEmail} />
+            <Field label="Institutional Email" value={f.institutionalEmail} />
+            <Field label="Permanent Address" value={f.permanentAddress} />
+            {!f.currentAddressSame && <Field label="Current Address" value={f.currentAddress} />}
+            <Field label="Is Working" value={f.isWorking ? 'Yes' : undefined} />
+            {f.isWorking && <Field label="Occupation" value={f.occupation} />}
+          </Section>
+
+          {/* Family Background */}
+          <Section title="Family Background">
+            <Field label="Parents Status" value={f.parentsStatus} />
+            <Field label="No. of Siblings" value={f.numberOfSiblings} />
+            <Field label="Birth Order" value={f.birthOrder} />
+            <Field label="Mother's Name" value={f.motherName} />
+            <Field label="Mother's Occupation" value={f.motherOccupation} />
+            <Field label="Mother's Contact" value={f.motherContact} />
+            <Field label="Father's Name" value={f.fatherName} />
+            <Field label="Father's Occupation" value={f.fatherOccupation} />
+            <Field label="Father's Contact" value={f.fatherContact} />
+            {f.guardianName && <Field label="Guardian's Name" value={f.guardianName} />}
+            {f.guardianName && <Field label="Guardian's Occupation" value={f.guardianOccupation} />}
+            {f.guardianName && <Field label="Guardian's Contact" value={f.guardianContact} />}
+          </Section>
+
+          {/* Educational Background */}
+          <Section title="Educational Background">
+            <Field label="Elementary School" value={f.elementarySchool} />
+            <Field label="Elementary Years" value={f.elementaryYears} />
+            <Field label="Elementary Awards" value={f.elementaryAwards} />
+            <Field label="Junior High School" value={f.juniorHighSchool} />
+            <Field label="Junior High Years" value={f.juniorHighYears} />
+            <Field label="Junior High Awards" value={f.juniorHighAwards} />
+            <Field label="Senior High School" value={f.seniorHighSchool} />
+            <Field label="Senior High Years" value={f.seniorHighYears} />
+            <Field label="Senior High Awards" value={f.seniorHighAwards} />
+          </Section>
+
+          {/* Interests & Activities */}
+          <Section title="Interests & Activities">
+            <Field label="Hobbies" value={f.hobbies} />
+            <Field label="Talents" value={f.talents} />
+            <Field label="Sports" value={f.sports} />
+            <Field label="Socio-Civic" value={f.socioCivic} />
+            <Field label="School Organizations" value={f.schoolOrg} />
+          </Section>
+
+          {/* Health History */}
+          <Section title="Health History">
+            <Field label="Hospitalized" value={f.hospitalized} />
+            {f.hospitalized === 'Yes' && <Field label="Reason" value={f.hospitalizationReason} />}
+            <Field label="Surgery" value={f.surgery} />
+            {f.surgery === 'Yes' && <Field label="Surgery Reason" value={f.surgeryReason} />}
+            <Field label="Chronic Illness" value={f.chronicIllness} />
+            <Field label="Family Illness" value={f.familyIllness} />
+            <Field label="Last Doctor Visit" value={f.lastDoctorVisit} />
+          </Section>
+
+          {/* Life Circumstances */}
+          {f.lifeCircumstances?.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-sm font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2 rounded-lg mb-3 uppercase tracking-wide">Life Circumstances</h3>
+              <div className="flex flex-wrap gap-2">
+                {f.lifeCircumstances.map((item: string) => (
+                  <span key={item} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium">{item}</span>
+                ))}
+                {f.lifeCircumstancesOthers && <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm">{f.lifeCircumstancesOthers}</span>}
+              </div>
+            </div>
+          )}
+
+          {/* Counselor Remarks */}
+          {f.counselorRemarks && (
+            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-xs font-bold text-amber-700 mb-1">Counselor Remarks</p>
+              <p className="text-sm text-amber-800">{f.counselorRemarks}</p>
+            </div>
+          )}
+
+          <div className="flex justify-end pt-4 border-t">
+            <button onClick={onClose} className="px-6 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 font-medium transition">Close</button>
           </div>
         </div>
       </div>

@@ -13,7 +13,11 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// Admin client using service role key — only used for admin password operations
+// Admin client — only created when service role key is present and different from anon key.
+// NOTE: This key is used for admin-only operations (create/delete users, bypass RLS).
+// Since RLS is disabled on this project, the risk is lower, but you should still
+// restrict access to this key and never share it publicly.
+// For production with RLS enabled, move these operations to a Supabase Edge Function.
 export const supabaseAdmin = supabaseServiceRoleKey && supabaseServiceRoleKey !== supabaseAnonKey
   ? createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },

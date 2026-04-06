@@ -100,7 +100,7 @@ export default function CounselingSessionNotes() {
           await supabase.from('student_notifications').insert({
             user_id: profile.id,
             student_id: selectedStudent.student_id,
-            type: 'session_recorded',
+            type: 'counseling_scheduled',
             title: `📝 Counseling Session #${form.session_number} Recorded`,
             message: `A counseling session record has been saved for you by the Guidance Office. Session date: ${new Date(form.session_date).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}. Status: ${form.session_status}.`,
           });

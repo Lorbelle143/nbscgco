@@ -3,6 +3,8 @@ import { supabase, supabaseAdmin } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { logAudit } from '../utils/auditLog';
 
+const BREVO_API_KEY = import.meta.env.VITE_BREVO_API_KEY || '';
+
 const STATUS_CONFIG = {
   pending:     { label: 'Pending',     color: 'bg-gray-100 text-gray-700 border-gray-300',   dot: 'bg-gray-400',   ring: 'ring-gray-300' },
   scheduled:   { label: 'Scheduled',   color: 'bg-blue-100 text-blue-700 border-blue-300',   dot: 'bg-blue-500',   ring: 'ring-blue-300' },
@@ -66,6 +68,11 @@ export default function FollowUpTracker() {
   const sendFollowUpEmail = async (a: any, status: string, notes: string) => {
     setSendingEmail(true);
     try {
+      if (!BREVO_API_KEY) {
+        toast.error('Email not configured — VITE_BREVO_API_KEY missing in .env');
+        return;
+      }
+
       const client = supabaseAdmin || supabase;
       const { data: profile } = await client.from('profiles').select('email').eq('student_id', a.student_id).maybeSingle();
       if (!profile?.email) { toast.error('Could not find student email'); return; }
@@ -76,7 +83,7 @@ export default function FollowUpTracker() {
       const STATUS_ICONS: Record<string, string> = {
         scheduled: '📅', 'in-progress': '🔄', completed: '✅', pending: '⏳',
       };
-      const STATUS_MESSAGES: Record<string, string> = {
+      const STATUS_MESSAGES_MAP: Record<string, string> = {
         scheduled: 'Your counseling session has been scheduled. Please visit the Guidance and Counseling Office at your earliest convenience.',
         'in-progress': 'Your counseling session is currently in progress. Please continue to cooperate with your counselor.',
         completed: 'Your counseling session has been completed. Thank you for participating. The Guidance Office is always here if you need further support.',
@@ -89,7 +96,7 @@ export default function FollowUpTracker() {
       const label = STATUS_LABELS[status] || status;
       const icon = STATUS_ICONS[status] || '📋';
       const color = STATUS_COLORS[status] || '#1a3a6b';
-      const message = STATUS_MESSAGES[status] || '';
+      const message = STATUS_MESSAGES_MAP[status] || '';
 
       const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,sans-serif;">
@@ -115,25 +122,25 @@ export default function FollowUpTracker() {
 </table></td></tr></table>
 </body></html>`;
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-      const res = await fetch(`${supabaseUrl}/functions/v1/send-email`, {
+      const res = await fetch('https://api.brevo.com/v3/smtp/email', {
         method: 'POST',
         headers: {
+          'api-key': BREVO_API_KEY,
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${supabaseAnonKey}`,
-          'apikey': supabaseAnonKey,
         },
         body: JSON.stringify({
-          to_email: profile.email,
-          to_name: a.full_name,
+          sender: { name: 'NBSC Guidance and Counseling Office', email: 'gco@nbsc.edu.ph' },
+          to: [{ email: profile.email, name: a.full_name }],
           subject: `${icon} Counseling Update: ${label} — NBSC Guidance Office`,
-          html,
+          htmlContent: html,
         }),
       });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || 'Failed to send email');
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || 'Brevo API error');
+      }
+
       toast.success(`📧 Email sent to ${profile.email}`);
     } catch (e: any) {
       toast.error('Email failed: ' + (e.message || 'Unknown error'));

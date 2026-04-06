@@ -79,7 +79,7 @@ export default function ConsentTracker() {
           await supabase.from('student_notifications').insert({
             user_id: profile.id,
             student_id: student.student_id,
-            type: 'consent_updated',
+            type: 'general',
             title: notif.title,
             message: notif.msg,
           });

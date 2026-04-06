@@ -99,10 +99,10 @@ export default function EditProfile() {
       // Upload to Cloudinary
       const publicUrl = await uploadToCloudinary(file, 'nbsc-gco/profile-pictures');
 
-      // Update profile with new picture URL
+      // Update profile with new picture URL — write to both columns for compatibility
       const { error: updateError } = await supabase
         .from('profiles')
-        .update({ profile_picture_url: publicUrl })
+        .update({ profile_picture_url: publicUrl, profile_picture: publicUrl })
         .eq('id', user?.id);
 
       if (updateError) throw updateError;
