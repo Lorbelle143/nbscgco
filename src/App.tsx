@@ -16,6 +16,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const EditProfile = lazy(() => import('./pages/EditProfile'));
 const MentalHealthAssessment = lazy(() => import('./pages/MentalHealthAssessment'));
 const NotFound = lazy(() => import('./pages/NotFound'));
+const Home = lazy(() => import('./pages/Home'));
 
 function PageLoader() {
   return (
@@ -53,7 +54,7 @@ function App() {
             <Route path="/mental-health-assessment" element={user && !isAdmin ? <MentalHealthAssessment /> : <Navigate to="/login" replace />} />
             <Route path="/admin" element={user && isAdmin ? <AdminDashboard /> : <Navigate to="/login" replace />} />
             <Route path="/inventory-form" element={user ? <InventoryForm /> : <Navigate to="/login" replace />} />
-            <Route path="/" element={<Navigate to={user ? (isAdmin ? "/admin" : "/dashboard") : "/login"} replace />} />
+            <Route path="/" element={user ? <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace /> : <Home />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
