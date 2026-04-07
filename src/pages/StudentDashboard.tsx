@@ -241,11 +241,16 @@ export default function StudentDashboard() {
       {/* Left Sidebar */}
       <aside className={`fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 flex flex-col transform transition-transform duration-300 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         {/* Logo */}
-        <div className="h-20 flex items-center justify-center border-b border-gray-200 px-4">
+        <div className="h-20 flex items-center justify-between border-b border-gray-200 px-4">
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="GCO Logo" className="w-10 h-10 object-contain flex-shrink-0" />
             <p className="text-sm font-semibold text-gray-700">Student Portal</p>
           </div>
+          <button onClick={() => setSidebarOpen(false)} className="lg:hidden p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Navigation */}
@@ -325,7 +330,14 @@ export default function StudentDashboard() {
                 {activeView === 'mental-health' && 'Mental Health'}
                 {activeView === 'edit-profile' && 'Edit Profile'}
               </h2>
-              <p className="text-sm text-gray-500">Welcome back, {profile?.full_name}!</p>
+              <p className="text-sm text-gray-500">
+                Welcome back, {profile?.full_name}!
+                {profile?.last_login && (
+                  <span className="ml-2 text-xs text-gray-400">
+                    Last login: {new Date(profile.last_login).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </p>
             </div>
           </div>
           
@@ -639,6 +651,39 @@ export default function StudentDashboard() {
             {completeness === 100 ? 'All done — your profile is complete!' : `${completedComponents} of 4 steps completed.`}
           </p>
         </div>
+
+        {/* Getting Started — only show when not all steps done */}
+        {completeness < 100 && (
+          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-5 mb-6">
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-lg">🚀</span>
+              <h3 className="font-bold text-indigo-800 text-sm">Getting Started</h3>
+              <span className="ml-auto text-xs text-indigo-500">{completedComponents}/4 done</span>
+            </div>
+            <div className="space-y-2">
+              {[
+                { done: hasProfileInfo, label: 'Complete your profile info', action: () => setActiveView('edit-profile'), actionLabel: 'Edit Profile' },
+                { done: hasProfilePicture, label: 'Upload a profile picture', action: () => setActiveView('edit-profile'), actionLabel: 'Upload Photo' },
+                { done: hasSubmission, label: 'Submit your inventory form', action: () => navigate('/inventory-form'), actionLabel: 'Fill Form' },
+                { done: hasMentalHealth, label: 'Take the BSRS-5 mental health assessment', action: () => navigate('/mental-health-assessment'), actionLabel: 'Take Now' },
+              ].map((step, i) => (
+                <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-lg ${step.done ? 'bg-green-50 border border-green-200' : 'bg-white border border-indigo-100'}`}>
+                  <div className="flex items-center gap-2">
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${step.done ? 'bg-green-500 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
+                      {step.done ? '✓' : i + 1}
+                    </span>
+                    <span className={`text-xs ${step.done ? 'text-green-700 line-through' : 'text-gray-700'}`}>{step.label}</span>
+                  </div>
+                  {!step.done && (
+                    <button onClick={step.action} className="text-xs text-indigo-600 font-semibold hover:underline flex-shrink-0 ml-2">
+                      {step.actionLabel} →
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
@@ -1406,8 +1451,7 @@ function CounselingStatusCard({ studentId }: { studentId: string }) {
       icon: '📅', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200',
       title: 'Counseling Session Scheduled',
       desc: 'Your counseling session has been scheduled. Please visit the Guidance and Counseling Office at your earliest convenience.',
-    },
-    'in-progress': {
+    },    'in-progress': {
       icon: '🔄', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200',
       title: 'Counseling Session In Progress',
       desc: 'Your counseling session is currently in progress. Please continue to cooperate with your counselor.',
@@ -1434,6 +1478,19 @@ function CounselingStatusCard({ studentId }: { studentId: string }) {
             <p className={`text-xs mt-2 ${c.color} opacity-70`}>
               <span className="font-semibold">Counselor notes:</span> {data.counselor_notes}
             </p>
+          )}
+          {data.counseling_status === 'scheduled' && (
+            <a
+              href="https://docs.google.com/spreadsheets/d/1-80LunHLARHr83-yBFB9KGFObQMEM2mUIx4L1PXhgT0/edit?gid=0#gid=0"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition shadow-sm"
+            >
+              📋 Book Appointment — Guidance Office
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
           )}
         </div>
       </div>
