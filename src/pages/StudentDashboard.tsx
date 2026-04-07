@@ -159,8 +159,8 @@ export default function StudentDashboard() {
       
       if (error) throw error;
       setMentalHealthAssessments(data || []);
-    } catch (error: any) {
-      console.error('Failed to load mental health assessments:', error);
+    } catch {
+      toast.error('Failed to load mental health assessments');
     }
   };
 
@@ -198,14 +198,15 @@ export default function StudentDashboard() {
     lastUpdated: submissions[0] ? new Date(submissions[0].created_at) : null
   };
 
-  // Profile completeness
-  const profileFields = ['full_name', 'student_id', 'email', 'profile_picture'];
-  const formFields = ['firstName', 'lastName', 'birthDate', 'gender', 'permanentAddress', 'mobilePhone', 'programYear', 'religion', 'civilStatus', 'ethnicity'];
-  const latestFormData = submissions[0]?.form_data || {};
-  const filledProfile = profileFields.filter(f => profile?.[f]).length;
-  const filledForm = formFields.filter(f => latestFormData[f]).length;
-  const totalFields = profileFields.length + formFields.length;
-  const completeness = submissions.length === 0 ? Math.round((filledProfile / profileFields.length) * 100) : Math.round(((filledProfile + filledForm) / totalFields) * 100);
+  // Profile completeness — 3 components: profile info, profile picture, inventory form submission
+  // Each component is worth 1/3 of the total (33.3% each)
+  const hasProfileInfo = !!(profile?.full_name && profile?.student_id && profile?.email);
+  const hasProfilePicture = !!(profile?.profile_picture || profile?.profile_picture_url);
+  const hasSubmission = submissions.length > 0;
+  const hasMentalHealth = mentalHealthAssessments.length > 0;
+  // 4 components: profile info, profile picture, inventory form, mental health assessment
+  const completedComponents = [hasProfileInfo, hasProfilePicture, hasSubmission, hasMentalHealth].filter(Boolean).length;
+  const completeness = Math.round((completedComponents / 4) * 100);
 
   if (initialLoading) {
     return (
@@ -416,9 +417,9 @@ export default function StudentDashboard() {
               onClick={() => setActiveView('edit-profile')}
               title="Edit Profile"
             >
-              {profile?.profile_picture ? (
+              {(profile?.profile_picture || profile?.profile_picture_url) ? (
                 <img
-                  src={profile.profile_picture}
+                  src={profile.profile_picture || profile.profile_picture_url}
                   alt="Profile"
                   className="w-10 h-10 rounded-full object-cover"
                 />
@@ -534,18 +535,40 @@ export default function StudentDashboard() {
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
-                  {mentalHealthAssessments.map((a) => {
+                    {mentalHealthAssessments.map((a) => {
                     const score = a.total_score ?? 0;
-                    const risk = score <= 5 ? { label: 'Low Risk', color: 'green' } : score <= 9 ? { label: 'Moderate Risk', color: 'yellow' } : { label: 'High Risk', color: 'red' };
+                    const risk = score >= 14
+                      ? { label: 'Immediate Support', color: 'red', icon: '🚨' }
+                      : score >= 11
+                      ? { label: 'Need Support', color: 'yellow', icon: '⚠️' }
+                      : { label: 'Doing Well', color: 'green', icon: '✅' };
                     return (
-                      <div key={a.id} className="px-6 py-4 flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-gray-800">Score: {score}/20</p>
-                          <p className="text-xs text-gray-500">{new Date(a.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                      <div key={a.id} className="px-6 py-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div>
+                            <p className="font-semibold text-gray-800">Score: {score}/20</p>
+                            <p className="text-xs text-gray-500">{new Date(a.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold bg-${risk.color}-100 text-${risk.color}-700`}>
+                            {risk.icon} {risk.label}
+                          </span>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-bold bg-${risk.color}-100 text-${risk.color}-700`}>
-                          {risk.label}
-                        </span>
+                        <div className="flex flex-wrap gap-1.5 text-xs">
+                          {[
+                            { label: 'Alone', val: a.feeling_alone },
+                            { label: 'Blue', val: a.feeling_blue },
+                            { label: 'Annoyed', val: a.feeling_easily_annoyed },
+                            { label: 'Tense', val: a.feeling_tense_anxious },
+                            { label: 'Inferior', val: a.feeling_inferior },
+                          ].map(item => (
+                            <span key={item.label} className="px-2 py-0.5 bg-gray-100 rounded text-gray-600">
+                              {item.label}: <span className="font-semibold text-gray-800">{item.val}</span>
+                            </span>
+                          ))}
+                          <span className={`px-2 py-0.5 rounded font-semibold ${a.having_suicidal_thoughts > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
+                            Suicidal: {a.having_suicidal_thoughts}{a.having_suicidal_thoughts > 0 ? ' ⚠️' : ''}
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
@@ -576,6 +599,11 @@ export default function StudentDashboard() {
           </div>
         </div>
 
+        {/* Counseling Status Card — only show if student has a mental health assessment */}
+        {mentalHealthAssessments.length > 0 && profile?.student_id && (
+          <CounselingStatusCard studentId={profile.student_id} />
+        )}
+
         {/* Profile Completeness */}
         <div className="bg-white rounded-xl shadow-lg p-5 mb-6 border border-gray-100">
           <div className="flex items-center justify-between mb-2">
@@ -585,18 +613,30 @@ export default function StudentDashboard() {
               </svg>
               <span className="font-semibold text-gray-700 text-sm">Profile Completeness</span>
             </div>
-            <span className={`text-sm font-bold ${completeness >= 80 ? 'text-green-600' : completeness >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
+            <span className={`text-sm font-bold ${completeness === 100 ? 'text-green-600' : completeness >= 50 ? 'text-amber-600' : 'text-red-500'}`}>
               {completeness}%
             </span>
           </div>
           <div className="w-full bg-gray-100 rounded-full h-2.5">
             <div
-              className={`h-2.5 rounded-full transition-all duration-500 ${completeness >= 80 ? 'bg-green-500' : completeness >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
+              className={`h-2.5 rounded-full transition-all duration-500 ${completeness === 100 ? 'bg-green-500' : completeness >= 50 ? 'bg-amber-400' : 'bg-red-400'}`}
               style={{ width: `${completeness}%` }}
             />
           </div>
+          <div className="flex flex-wrap gap-3 mt-2">
+            {[
+              { label: 'Profile Info', done: hasProfileInfo },
+              { label: 'Profile Picture', done: hasProfilePicture },
+              { label: 'Inventory Form', done: hasSubmission },
+              { label: 'Mental Health', done: hasMentalHealth },
+            ].map(item => (
+              <span key={item.label} className={`text-xs flex items-center gap-1 ${item.done ? 'text-green-600' : 'text-gray-400'}`}>
+                {item.done ? '✓' : '○'} {item.label}
+              </span>
+            ))}
+          </div>
           <p className="text-xs text-gray-400 mt-1.5">
-            {completeness === 100 ? 'Your profile is complete!' : completeness >= 80 ? 'Almost there — fill in the remaining details.' : 'Complete your profile and submit your inventory form.'}
+            {completeness === 100 ? 'All done — your profile is complete!' : `${completedComponents} of 4 steps completed.`}
           </p>
         </div>
 
@@ -785,13 +825,24 @@ export default function StudentDashboard() {
                   <div key={submission.id} className="group bg-white rounded-xl p-6 border-2 border-gray-200 hover:border-blue-400 hover:shadow-xl transition-all duration-200">
                     {/* Submission Header */}
                     <div className="flex justify-between items-start mb-4">
-                      <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-green-50 text-green-700 border-green-300">
-                        ✅ Submitted
-                      </span>
+                      {(() => {
+                        const s = submission.submission_status;
+                        if (s === 'approved') return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-green-50 text-green-700 border-green-300">✅ Approved</span>;
+                        if (s === 'needs-revision') return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-red-50 text-red-700 border-red-300">✏️ Needs Revision</span>;
+                        if (s === 'under-review') return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-blue-50 text-blue-700 border-blue-300">🔍 Under Review</span>;
+                        return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-green-50 text-green-700 border-green-300">✅ Submitted</span>;
+                      })()}
                       <span className="text-xs text-gray-500 font-medium">
                         ID: {submission.student_id}
                       </span>
                     </div>
+
+                    {/* Admin remarks banner */}
+                    {submission.admin_remarks && (
+                      <div className={`mb-3 px-3 py-2 rounded-lg text-xs border ${submission.submission_status === 'needs-revision' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-blue-50 border-blue-200 text-blue-700'}`}>
+                        <span className="font-semibold">Counselor note: </span>{submission.admin_remarks}
+                      </div>
+                    )}
 
                     <div className="flex gap-4 mb-4">
                       {submission.photo_url ? (
@@ -1115,7 +1166,11 @@ export default function StudentDashboard() {
                           <p className="text-gray-600 mb-1">Tense/anxious</p>
                           <p className="font-bold text-gray-800">{assessment.feeling_tense_anxious}/4</p>
                         </div>
-                        <div className={`rounded-lg p-2 col-span-2 border-2 ${assessment.having_suicidal_thoughts > 0 ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className="bg-gray-50 rounded-lg p-2 border border-gray-200">
+                          <p className="text-gray-600 mb-1">Feeling inferior</p>
+                          <p className="font-bold text-gray-800">{assessment.feeling_inferior}/4</p>
+                        </div>
+                        <div className={`rounded-lg p-2 border-2 ${assessment.having_suicidal_thoughts > 0 ? 'bg-red-50 border-red-300' : 'bg-gray-50 border-gray-200'}`}>
                           <p className="text-gray-600 mb-1">Suicidal thoughts</p>
                           <p className={`font-bold ${assessment.having_suicidal_thoughts > 0 ? 'text-red-600' : 'text-gray-800'}`}>
                             {assessment.having_suicidal_thoughts}/4
@@ -1234,6 +1289,7 @@ export default function StudentDashboard() {
                               <span className="px-2 py-1 bg-gray-100 rounded">Blue: {assessment.feeling_blue}</span>
                               <span className="px-2 py-1 bg-gray-100 rounded">Annoyed: {assessment.feeling_easily_annoyed}</span>
                               <span className="px-2 py-1 bg-gray-100 rounded">Tense: {assessment.feeling_tense_anxious}</span>
+                              <span className="px-2 py-1 bg-gray-100 rounded">Inferior: {assessment.feeling_inferior}</span>
                               <span className={`px-2 py-1 rounded ${assessment.having_suicidal_thoughts > 0 ? 'bg-red-100 text-red-700 font-bold' : 'bg-gray-100'}`}>
                                 Suicidal: {assessment.having_suicidal_thoughts}
                               </span>
@@ -1328,12 +1384,69 @@ function ConsentStatusCard({ studentId }: { studentId: string | undefined }) {
   );
 }
 
+function CounselingStatusCard({ studentId }: { studentId: string }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase
+      .from('mental_health_assessments')
+      .select('counseling_status, counselor_notes, counseled_at')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => { setData(data); setLoading(false); });
+  }, [studentId]);
+
+  if (loading || !data || !data.counseling_status || data.counseling_status === 'pending') return null;
+
+  const cfg: Record<string, { icon: string; color: string; bg: string; border: string; title: string; desc: string }> = {
+    scheduled: {
+      icon: '📅', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200',
+      title: 'Counseling Session Scheduled',
+      desc: 'Your counseling session has been scheduled. Please visit the Guidance and Counseling Office at your earliest convenience.',
+    },
+    'in-progress': {
+      icon: '🔄', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200',
+      title: 'Counseling Session In Progress',
+      desc: 'Your counseling session is currently in progress. Please continue to cooperate with your counselor.',
+    },
+    completed: {
+      icon: '✅', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200',
+      title: 'Counseling Session Completed',
+      desc: data.counseled_at
+        ? `Your counseling session was completed on ${new Date(data.counseled_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}.`
+        : 'Your counseling session has been completed. Thank you for participating.',
+    },
+  };
+  const c = cfg[data.counseling_status];
+  if (!c) return null;
+
+  return (
+    <div className={`rounded-xl border-2 ${c.bg} ${c.border} p-5 mb-6`}>
+      <div className="flex items-start gap-3">
+        <span className="text-2xl flex-shrink-0">{c.icon}</span>
+        <div className="flex-1">
+          <p className={`font-bold text-sm ${c.color}`}>{c.title}</p>
+          <p className={`text-sm mt-0.5 ${c.color} opacity-80`}>{c.desc}</p>
+          {data.counselor_notes && (
+            <p className={`text-xs mt-2 ${c.color} opacity-70`}>
+              <span className="font-semibold">Counselor notes:</span> {data.counselor_notes}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditProfileInline({ profile, userId, onSaved }: { profile: any; userId: string | undefined; onSaved: (p: any) => void }) {
   const toast = useToastContext();
-  const [form, setForm] = useState({ full_name: profile?.full_name || '', student_id: profile?.student_id || '' });
+  const [form, setForm] = useState({ full_name: profile?.full_name || '' });
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [preview, setPreview] = useState<string | null>(profile?.profile_picture || null);
+  const [preview, setPreview] = useState<string | null>(profile?.profile_picture || profile?.profile_picture_url || null);
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1359,9 +1472,9 @@ function EditProfileInline({ profile, userId, onSaved }: { profile: any; userId:
     if (!userId) return;
     setSaving(true);
     try {
-      const { error } = await supabase.from('profiles').update({ full_name: form.full_name, student_id: form.student_id }).eq('id', userId);
+      const { error } = await supabase.from('profiles').update({ full_name: form.full_name }).eq('id', userId);
       if (error) throw error;
-      onSaved({ ...profile, ...form });
+      onSaved({ ...profile, full_name: form.full_name });
       toast.success('Profile updated!');
     } catch (err: any) {
       toast.error('Failed to save: ' + err.message);
@@ -1418,8 +1531,9 @@ function EditProfileInline({ profile, userId, onSaved }: { profile: any; userId:
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Student ID</label>
-            <input type="text" value={form.student_id} onChange={e => setForm({ ...form, student_id: e.target.value })}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition" required />
+            <input type="text" value={profile?.student_id || ''} disabled
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-400 cursor-not-allowed" />
+            <p className="text-xs text-gray-400 mt-1">Student ID cannot be changed</p>
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Institutional Email</label>
