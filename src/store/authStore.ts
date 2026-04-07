@@ -15,7 +15,7 @@ interface AuthState {
   initializeAuth: () => Promise<void>;
 }
 
-let authListenerRegistered = false;
+let authListenerSubscription: { unsubscribe: () => void } | null = null;
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -30,6 +30,8 @@ export const useAuthStore = create<AuthState>()(
 
       signOut: async () => {
         await supabase.auth.signOut();
+        authListenerSubscription?.unsubscribe();
+        authListenerSubscription = null;
         set({ user: null, isAdmin: false, loading: false, sessionChecked: true });
       },
 
@@ -113,10 +115,9 @@ export const useAuthStore = create<AuthState>()(
 );
 
 function registerAuthListener(set: (partial: Partial<AuthState>) => void) {
-  if (authListenerRegistered) return;
-  authListenerRegistered = true;
+  if (authListenerSubscription) return;
 
-  supabase.auth.onAuthStateChange(async (event, session) => {
+  const { data } = supabase.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session?.user) {
       const { data: profile } = await supabase
         .from('profiles')
@@ -153,4 +154,5 @@ function registerAuthListener(set: (partial: Partial<AuthState>) => void) {
       set({ user: session.user, isAdmin: profile?.is_admin || false });
     }
   });
+  authListenerSubscription = data.subscription;
 }

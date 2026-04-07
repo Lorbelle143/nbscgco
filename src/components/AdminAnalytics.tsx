@@ -201,7 +201,7 @@ export default function AdminAnalytics({ submissions, students }: AnalyticsProps
           </h3>
           <div className="space-y-3">
             {Object.entries(analytics.courseCount).map(([course, count]) => {
-              const percentage = ((count / analytics.totalSubmissions) * 100).toFixed(1);
+              const percentage = analytics.totalSubmissions > 0 ? ((count / analytics.totalSubmissions) * 100).toFixed(1) : '0';
               return (
                 <div key={course}>
                   <div className="flex justify-between text-sm mb-1">
@@ -230,7 +230,7 @@ export default function AdminAnalytics({ submissions, students }: AnalyticsProps
           </h3>
           <div className="space-y-3">
             {Object.entries(analytics.yearCount).map(([year, count]) => {
-              const percentage = ((count / analytics.totalSubmissions) * 100).toFixed(1);
+              const percentage = analytics.totalSubmissions > 0 ? ((count / analytics.totalSubmissions) * 100).toFixed(1) : '0';
               return (
                 <div key={year}>
                   <div className="flex justify-between text-sm mb-1">
@@ -259,7 +259,7 @@ export default function AdminAnalytics({ submissions, students }: AnalyticsProps
           </h3>
           <div className="space-y-3">
             {Object.entries(analytics.genderCount).map(([gender, count]) => {
-              const percentage = ((count / analytics.totalSubmissions) * 100).toFixed(1);
+              const percentage = analytics.totalSubmissions > 0 ? ((count / analytics.totalSubmissions) * 100).toFixed(1) : '0';
               return (
                 <div key={gender}>
                   <div className="flex justify-between text-sm mb-1">

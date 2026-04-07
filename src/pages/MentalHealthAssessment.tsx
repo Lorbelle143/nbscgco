@@ -26,10 +26,10 @@ export default function MentalHealthAssessment() {
   });
 
   const questions = [
-    { key: 'feeling_alone', text: 'Trouble falling asleep' },
-    { key: 'feeling_blue', text: 'Feeling tense or keyed up' },
+    { key: 'feeling_alone', text: 'Feeling alone' },
+    { key: 'feeling_blue', text: 'Feeling blue' },
     { key: 'feeling_easily_annoyed', text: 'Feeling easily annoyed or irritated' },
-    { key: 'feeling_tense_anxious', text: 'Feeling blue' },
+    { key: 'feeling_tense_anxious', text: 'Feeling tense or keyed up' },
     { key: 'feeling_inferior', text: 'Feeling inferior to others' }
   ];
 

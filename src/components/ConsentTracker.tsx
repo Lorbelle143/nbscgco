@@ -21,6 +21,8 @@ export default function ConsentTracker() {
   const [saving, setSaving] = useState<string | null>(null);
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesInput, setNotesInput] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   useEffect(() => { load(); }, []);
 
@@ -113,6 +115,9 @@ export default function ConsentTracker() {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+
   const counts = {
     all:     records.length,
     signed:  records.filter(r => r.consent?.status === 'signed').length,
@@ -136,7 +141,7 @@ export default function ConsentTracker() {
         {(['all', 'signed', 'pending', 'declined'] as const).map(key => {
           const cfg = key !== 'all' ? STATUS_CONFIG[key] : null;
           return (
-            <button key={key} onClick={() => setFilter(key)}
+            <button key={key} onClick={() => { setFilter(key); setCurrentPage(1); }}
               className={`p-5 rounded-2xl border-2 text-left transition-all hover:shadow-lg hover:-translate-y-0.5 ${filter === key ? (cfg ? cfg.color + ' border-current shadow-md' : 'bg-orange-50 border-orange-400 shadow-md') : 'bg-white border-gray-100 hover:border-gray-200'}`}>
               <div className="flex items-center justify-between mb-3">
                 {cfg ? <span className={`w-3 h-3 rounded-full ${cfg.dot}`} /> : <span className="text-base">📋</span>}
@@ -157,10 +162,10 @@ export default function ConsentTracker() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input type="text" placeholder="Search by name or student ID..." value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setCurrentPage(1); }}
               className="w-full pl-9 pr-4 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
           </div>
-          <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
+          <select value={sortBy} onChange={e => { setSortBy(e.target.value as any); setCurrentPage(1); }}
             className="px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 bg-white">
             <option value="name">Sort: Name A–Z</option>
             <option value="date">Sort: Latest First</option>
@@ -195,7 +200,7 @@ export default function ConsentTracker() {
       ) : viewMode === 'list' ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="divide-y divide-gray-50">
-            {filtered.map(r => (
+            {paginated.map(r => (
               <ConsentRow key={r.student_id} r={r} saving={saving} editingNotes={editingNotes} notesInput={notesInput}
                 setEditingNotes={setEditingNotes} setNotesInput={setNotesInput} updateConsent={updateConsent} />
             ))}
@@ -203,10 +208,41 @@ export default function ConsentTracker() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map(r => (
+          {paginated.map(r => (
             <ConsentCard key={r.student_id} r={r} saving={saving} editingNotes={editingNotes} notesInput={notesInput}
               setEditingNotes={setEditingNotes} setNotesInput={setNotesInput} updateConsent={updateConsent} />
           ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-3">
+          <span className="text-sm text-gray-500">
+            Page {currentPage} of {totalPages} &nbsp;·&nbsp; {filtered.length} total
+          </span>
+          <div className="flex gap-1">
+            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1}
+              className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">«</button>
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Prev</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .reduce<(number | '...')[]>((acc, p, i, arr) => {
+                if (i > 0 && (p as number) - (arr[i - 1] as number) > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) => p === '...'
+                ? <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-xs text-gray-400">…</span>
+                : <button key={p} onClick={() => setCurrentPage(p as number)}
+                    className={`px-3 py-1.5 text-xs rounded-lg border transition ${currentPage === p ? 'bg-orange-600 text-white border-orange-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{p}</button>
+              )}
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}
+              className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">»</button>
+          </div>
         </div>
       )}
     </div>

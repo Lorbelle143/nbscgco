@@ -32,6 +32,8 @@ export default function FollowUpTracker() {
   const [editData, setEditData] = useState({ counseling_status: '', counselor_notes: '' });
   const [saving, setSaving] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   useEffect(() => { load(); }, []);
 
@@ -190,12 +192,14 @@ export default function FollowUpTracker() {
       }
 
       await logAudit('update', 'mental_health', a.id, `Updated counseling status to ${editData.counseling_status} for ${a.full_name}`);
-      toast.success('Follow-up status updated');
-      setEditingId(null);
-      load();
+
       if (['scheduled', 'in-progress', 'completed'].includes(editData.counseling_status)) {
         await sendFollowUpEmail(a, editData.counseling_status, editData.counselor_notes);
       }
+
+      toast.success('Follow-up status updated');
+      setEditingId(null);
+      load();
     } catch (e: any) {
       toast.error('Failed to save: ' + e.message);
     } finally {
@@ -219,6 +223,9 @@ export default function FollowUpTracker() {
       if (sortBy === 'status') return (a.counseling_status || 'pending').localeCompare(b.counseling_status || 'pending');
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const paginated = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const counts = {
     pending:     assessments.filter(a => !a.counseling_status || a.counseling_status === 'pending').length,
@@ -244,7 +251,7 @@ export default function FollowUpTracker() {
           const cfg = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG];
           const isActive = filter === status;
           return (
-            <button key={status} onClick={() => setFilter(isActive ? 'all' : status as any)}
+            <button key={status} onClick={() => { setFilter(isActive ? 'all' : status as any); setCurrentPage(1); }}
               className={`p-5 rounded-2xl border-2 text-left transition-all hover:shadow-lg hover:-translate-y-0.5 ${isActive ? cfg.color + ' border-current shadow-md' : 'bg-white border-gray-100 hover:border-gray-200'}`}>
               <div className="flex items-center justify-between mb-3">
                 <span className={`w-3 h-3 rounded-full ${cfg.dot}`} />
@@ -266,18 +273,18 @@ export default function FollowUpTracker() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input type="text" placeholder="Search by name or student ID..." value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
+              onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
               className="w-full pl-9 pr-4 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent" />
           </div>
           {/* Risk filter */}
-          <select value={riskFilter} onChange={e => setRiskFilter(e.target.value as any)}
+          <select value={riskFilter} onChange={e => { setRiskFilter(e.target.value as any); setCurrentPage(1); }}
             className="px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 bg-white">
             <option value="all">All Risk Levels</option>
             <option value="need-support">⚠️ Need Support</option>
             <option value="immediate-support">🚨 Immediate Support</option>
           </select>
           {/* Sort */}
-          <select value={sortBy} onChange={e => setSortBy(e.target.value as any)}
+          <select value={sortBy} onChange={e => { setSortBy(e.target.value as any); setCurrentPage(1); }}
             className="px-3 py-2.5 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 bg-white">
             <option value="date">Sort: Latest First</option>
             <option value="name">Sort: Name A–Z</option>
@@ -317,12 +324,43 @@ export default function FollowUpTracker() {
       ) : viewMode === 'list' ? (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="divide-y divide-gray-50">
-            {filtered.map(a => <FollowUpRow key={a.id} a={a} editingId={editingId} editData={editData} setEditData={setEditData} saving={saving} sendingEmail={sendingEmail} handleEdit={handleEdit} handleSave={handleSave} setEditingId={setEditingId} />)}
+            {paginated.map(a => <FollowUpRow key={a.id} a={a} editingId={editingId} editData={editData} setEditData={setEditData} saving={saving} sendingEmail={sendingEmail} handleEdit={handleEdit} handleSave={handleSave} setEditingId={setEditingId} />)}
           </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map(a => <FollowUpCard key={a.id} a={a} editingId={editingId} editData={editData} setEditData={setEditData} saving={saving} sendingEmail={sendingEmail} handleEdit={handleEdit} handleSave={handleSave} setEditingId={setEditingId} />)}
+          {paginated.map(a => <FollowUpCard key={a.id} a={a} editingId={editingId} editData={editData} setEditData={setEditData} saving={saving} sendingEmail={sendingEmail} handleEdit={handleEdit} handleSave={handleSave} setEditingId={setEditingId} />)}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white rounded-2xl shadow-sm border border-gray-100 px-5 py-3">
+          <span className="text-sm text-gray-500">
+            Page {currentPage} of {totalPages} &nbsp;·&nbsp; {filtered.length} total
+          </span>
+          <div className="flex gap-1">
+            <button onClick={() => setCurrentPage(1)} disabled={currentPage === 1}
+              className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">«</button>
+            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
+              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Prev</button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .reduce<(number | '...')[]>((acc, p, i, arr) => {
+                if (i > 0 && (p as number) - (arr[i - 1] as number) > 1) acc.push('...');
+                acc.push(p);
+                return acc;
+              }, [])
+              .map((p, i) => p === '...'
+                ? <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-xs text-gray-400">…</span>
+                : <button key={p} onClick={() => setCurrentPage(p as number)}
+                    className={`px-3 py-1.5 text-xs rounded-lg border transition ${currentPage === p ? 'bg-orange-600 text-white border-orange-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>{p}</button>
+              )}
+            <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages}
+              className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">Next</button>
+            <button onClick={() => setCurrentPage(totalPages)} disabled={currentPage === totalPages}
+              className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">»</button>
+          </div>
         </div>
       )}
     </div>

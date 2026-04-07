@@ -23,9 +23,29 @@ export default function BulkImport({ onDone }: { onDone: () => void }) {
   const parseCSV = (text: string): ImportRow[] => {
     const lines = text.trim().split('\n');
     if (lines.length < 2) return [];
-    // Skip header row
+
+    const parseLine = (line: string): string[] => {
+      const cols: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+          else inQuotes = !inQuotes;
+        } else if (ch === ',' && !inQuotes) {
+          cols.push(current.trim());
+          current = '';
+        } else {
+          current += ch;
+        }
+      }
+      cols.push(current.trim());
+      return cols;
+    };
+
     return lines.slice(1).map(line => {
-      const cols = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''));
+      const cols = parseLine(line);
       return {
         full_name: cols[0] || '',
         student_id: cols[1] || '',

@@ -22,21 +22,14 @@ export default function EditProfile() {
 
   useEffect(() => {
     if (user) {
-      console.log('Current user:', user);
       loadProfile();
     } else {
-      console.log('No user found, redirecting...');
       navigate('/login');
     }
   }, [user]);
 
   const loadProfile = async () => {
-    if (!user) {
-      console.log('No user in loadProfile');
-      return;
-    }
-    
-    console.log('Loading profile for user ID:', user.id);
+    if (!user) return;
     
     try {
       const { data, error, count } = await supabase
@@ -44,17 +37,13 @@ export default function EditProfile() {
         .select('*', { count: 'exact' })
         .eq('id', user.id);
 
-      console.log('Query result:', { data, error, count });
-
       if (error) {
-        console.error('Profile load error:', error);
         toast.error('Failed to load profile: ' + error.message);
         return;
       }
 
       if (data && data.length > 0) {
         const profileData = data[0];
-        console.log('Profile found:', profileData);
         setProfile({
           full_name: profileData.full_name || '',
           student_id: profileData.student_id || '',
@@ -63,17 +52,13 @@ export default function EditProfile() {
         });
         setPreviewUrl(profileData.profile_picture_url || profileData.profile_picture || null);
       } else {
-        console.log('No profile found for user - Profile was deleted');
         toast.error('Your profile was deleted by admin. Please logout and contact administrator.');
-        
-        // Sign out the user after 3 seconds
         setTimeout(async () => {
           await supabase.auth.signOut();
           navigate('/login');
         }, 3000);
       }
     } catch (err: any) {
-      console.error('Load profile error:', err);
       toast.error('Error loading profile: ' + err.message);
     }
   };
@@ -126,7 +111,6 @@ export default function EditProfile() {
         .from('profiles')
         .update({
           full_name: profile.full_name,
-          student_id: profile.student_id,
         })
         .eq('id', user?.id);
 
@@ -239,10 +223,10 @@ export default function EditProfile() {
               <input
                 type="text"
                 value={profile.student_id}
-                onChange={(e) => setProfile({ ...profile, student_id: e.target.value })}
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
-                required
+                disabled
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-100 text-gray-500 cursor-not-allowed"
               />
+              <p className="text-xs text-gray-500 mt-1">Student ID cannot be changed</p>
             </div>
 
             <div>
