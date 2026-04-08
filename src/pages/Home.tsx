@@ -34,7 +34,7 @@ const CONTACT = [
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-[#05080f] text-white font-sans antialiased selection:bg-blue-500/30">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white font-sans antialiased selection:bg-blue-500/30">
       <style>{`
         /* ── Animations ── */
         @keyframes fadeUp   { from{opacity:0;transform:translateY(32px)} to{opacity:1;transform:translateY(0)} }
@@ -134,7 +134,7 @@ export default function Home() {
       {/* ══════════════════════════════════════════
           NAVBAR
       ══════════════════════════════════════════ */}
-      <nav className="sticky top-0 z-50 bg-[#05080f]/80 backdrop-blur-2xl border-b border-white/[0.055]">
+      <nav className="sticky top-0 z-50 bg-slate-900/80 backdrop-blur-2xl border-b border-white/[0.055]">
         <div className="max-w-7xl mx-auto px-6 h-[62px] flex items-center justify-between">
 
           {/* Brand */}
@@ -153,7 +153,7 @@ export default function Home() {
           <div className="hidden md:flex items-center gap-7">
             {NAV_LINKS.map(l => (
               <a key={l.label} href={l.href}
-                className="nl text-[13px] font-medium text-gray-400 hover:text-white transition-colors">
+                className="nl text-sm font-medium text-white/70 hover:text-white transition-colors">
                 {l.label}
               </a>
             ))}
@@ -218,7 +218,7 @@ export default function Home() {
             </h1>
 
             {/* Sub */}
-            <p className="fu2 text-gray-400 text-[15px] md:text-base max-w-[440px] mb-10 leading-[1.75] mx-auto md:mx-0">
+            <p className="fu2 text-white/60 text-[15px] md:text-base max-w-[440px] mb-10 leading-[1.75] mx-auto md:mx-0">
               A secure, centralized platform for student counseling, mental health assessments, and guidance services at NBSC.
             </p>
 
@@ -232,7 +232,7 @@ export default function Home() {
             <div className="fu4 flex flex-wrap gap-3 justify-center md:justify-start">
               {['🔒 Secure & Private','✅ Licensed Counselors','📊 Real-time Tracking','🎓 NBSC Official'].map(t => (
                 <span key={t}
-                  className="text-[11px] text-gray-500 bg-white/[0.03] border border-white/[0.07] px-3 py-1 rounded-full">
+                  className="text-[11px] text-white/50 bg-white/[0.06] border border-white/[0.1] px-3 py-1 rounded-full">
                   {t}
                 </span>
               ))}
@@ -294,7 +294,7 @@ export default function Home() {
             <div key={s.label} className="text-center group">
               <p className="text-[2.6rem] font-black mb-1 group-hover:scale-110 transition-transform"
                 style={{ color: s.color }}>{s.value}</p>
-              <p className="text-[11px] text-gray-500 font-semibold tracking-widest uppercase">{s.label}</p>
+              <p className="text-[11px] text-white/50 font-semibold tracking-widest uppercase">{s.label}</p>
             </div>
           ))}
         </div>
@@ -317,10 +317,10 @@ export default function Home() {
               Committed to Student<br />
               <span className="grad-text">Well-being &amp; Growth</span>
             </h2>
-            <p className="text-gray-400 leading-[1.8] mb-5 text-[15px]">
+            <p className="text-white/60 leading-[1.8] mb-5 text-[15px]">
               The NBSC Guidance and Counseling Office is dedicated to the holistic development of every student. We provide professional counseling, mental health assessments, and follow-up services to help students thrive academically, emotionally, and socially.
             </p>
-            <p className="text-gray-500 leading-[1.8] text-[14px] mb-10">
+            <p className="text-white/50 leading-[1.8] text-[14px] mb-10">
               Our team of licensed counselors works closely with students to address personal, academic, and career concerns in a safe and confidential setting at Northern Bukidnon State College.
             </p>
             <div className="flex gap-3 flex-wrap">
@@ -336,7 +336,7 @@ export default function Home() {
                 style={{ animationDelay: `${i * 0.07}s` }}>
                 <div className="text-[28px] mb-3">{s.emoji}</div>
                 <h3 className="font-bold text-[13px] text-white mb-2">{s.title}</h3>
-                <p className="text-gray-500 text-[12px] leading-relaxed">{s.desc}</p>
+                <p className="text-white/50 text-[12px] leading-relaxed">{s.desc}</p>
               </div>
             ))}
           </div>
@@ -364,7 +364,7 @@ export default function Home() {
             Ready to access your<br />
             <span className="grad-text">counseling portal?</span>
           </h2>
-          <p className="text-gray-400 text-[15px] mb-10 max-w-lg mx-auto leading-[1.75]">
+          <p className="text-white/60 text-[15px] mb-10 max-w-lg mx-auto leading-[1.75]">
             Sign in with your student account or create a new account to begin your counseling journey with NBSC.
           </p>
           <div className="flex gap-4 justify-center flex-wrap">
@@ -388,7 +388,7 @@ export default function Home() {
             <h2 className="font-black mb-4" style={{ fontSize:'clamp(2rem,4vw,2.8rem)' }}>
               Contact the Guidance Office
             </h2>
-            <p className="text-gray-500 text-[15px] max-w-md mx-auto leading-relaxed">
+            <p className="text-white/60 text-[15px] max-w-md mx-auto leading-relaxed">
               We're here to help. Reach out anytime during office hours and we'll get back to you.
             </p>
           </div>
@@ -401,8 +401,8 @@ export default function Home() {
                   {c.emoji}
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-600 font-bold uppercase tracking-widest mb-2">{c.label}</p>
-                  <p className="text-[14px] text-gray-200 leading-relaxed whitespace-pre-line">{c.value}</p>
+                  <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mb-2">{c.label}</p>
+                  <p className="text-[14px] text-white leading-relaxed whitespace-pre-line">{c.value}</p>
                 </div>
               </div>
             ))}
@@ -417,15 +417,15 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-5">
           <div className="flex items-center gap-3">
             <img src="/nbsc-logo.png" alt="NBSC" className="h-7 w-7 object-contain opacity-40" />
-            <span className="text-[12px] text-gray-600">NBSC Guidance &amp; Counseling Office</span>
+            <span className="text-[12px] text-white/40">NBSC Guidance &amp; Counseling Office</span>
           </div>
-          <p className="text-[11px] text-gray-700">
+          <p className="text-[11px] text-white/30">
             © {new Date().getFullYear()} Northern Bukidnon State College. All rights reserved.
           </p>
           <div className="flex gap-6">
             {NAV_LINKS.map(l => (
               <a key={l.label} href={l.href}
-                className="text-[11px] text-gray-600 hover:text-gray-300 transition-colors">{l.label}</a>
+                className="text-[11px] text-white/40 hover:text-white transition-colors">{l.label}</a>
             ))}
           </div>
         </div>
