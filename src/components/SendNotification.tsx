@@ -253,7 +253,7 @@ export default function SendNotification({ students }: Props) {
               <span className="text-xl">📧</span>
               <div>
                 <p className="text-sm font-semibold text-gray-800">Also send via Email</p>
-                <p className="text-xs text-gray-500">Sends to student's @nbsc.edu.ph email</p>
+                <p className="text-xs text-gray-500">Sends to student's personal email</p>
               </div>
             </div>
             <div className={`w-11 h-6 rounded-full transition-colors relative ${sendEmail ? 'bg-orange-500' : 'bg-gray-300'}`}>

@@ -1593,7 +1593,7 @@ function EditProfileInline({ profile, userId, onSaved }: { profile: any; userId:
             <p className="text-xs text-gray-400 mt-1">Student ID cannot be changed</p>
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Institutional Email</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
             <input type="email" value={profile?.email || ''} disabled
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-50 text-gray-400 cursor-not-allowed" />
             <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
@@ -1670,7 +1670,7 @@ function ViewSubmissionModal({ submission, onClose }: any) {
             <Field label="Religion" value={f.religion} />
             <Field label="Ethnicity" value={f.ethnicity} />
             <Field label="Personal Email" value={f.personalEmail} />
-            <Field label="Institutional Email" value={f.institutionalEmail} />
+            <Field label="Email" value={f.institutionalEmail} />
             <Field label="Permanent Address" value={f.permanentAddress} />
             {!f.currentAddressSame && <Field label="Current Address" value={f.currentAddress} />}
             <Field label="Is Working" value={f.isWorking ? 'Yes' : undefined} />

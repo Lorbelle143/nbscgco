@@ -2318,28 +2318,19 @@ export default function AdminDashboard() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Institutional Email * <span className="text-xs text-gray-500">(@nbsc.edu.ph)</span>
+                        Email *
                       </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          name="emailUsername"
-                          value={userFormData.email.replace('@nbsc.edu.ph', '')}
-                          onChange={(e) => {
-                            const username = e.target.value.replace(/@/g, '');
-                            setUserFormData({
-                              ...userFormData,
-                              email: username + '@nbsc.edu.ph'
-                            });
-                          }}
-                          className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                          placeholder="Enter Student ID"
-                          required
-                        />
-                        <span className="text-gray-600 font-medium">@nbsc.edu.ph</span>
-                      </div>
+                      <input
+                        type="email"
+                        name="email"
+                        value={userFormData.email}
+                        onChange={handleUserFormChange}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="e.g. student@gmail.com"
+                        required
+                      />
                       <p className="text-xs text-gray-500 mt-1">
-                        Example: 2021-12345@nbsc.edu.ph (Use Student ID as email)
+                        Student's personal email address
                       </p>
                     </div>
                   </>

@@ -81,9 +81,9 @@ export default function BulkImport({ onDone }: { onDone: () => void }) {
     for (let i = 0; i < updated.length; i++) {
       const row = updated[i];
       try {
-        // Validate email domain
-        if (!row.email.endsWith('@nbsc.edu.ph')) {
-          throw new Error('Email must end with @nbsc.edu.ph');
+        // Validate email — accept any valid email
+        if (!row.email || !row.email.includes('@')) {
+          throw new Error('Invalid email address');
         }
         if (!row.password || row.password.length < 6) {
           throw new Error('Password must be at least 6 characters');
@@ -146,7 +146,7 @@ export default function BulkImport({ onDone }: { onDone: () => void }) {
   };
 
   const downloadTemplate = () => {
-    const csv = 'full_name,student_id,email,password\nJuan Dela Cruz,2024-0001,2024-0001@nbsc.edu.ph,password123\n';
+    const csv = 'full_name,student_id,email,password\nJuan Dela Cruz,2024-0001,juandelacruz@gmail.com,password123\n';
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');

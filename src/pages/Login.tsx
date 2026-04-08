@@ -4,7 +4,7 @@ import { supabase, supabaseAdmin } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 
 export default function Login() {
-  const [studentId, setStudentId] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -27,27 +27,21 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('student_id', studentId)
-        .single();
-
-      if (profileError || !profile) {
-        setError('Student ID not found. Please register first or contact the administrator.');
-        setLoading(false);
-        return;
-      }
-
       // Auto-confirm so login always works
-      if (supabaseAdmin) {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (profile?.id && supabaseAdmin) {
         try {
           await supabaseAdmin.auth.admin.updateUserById(profile.id, { email_confirm: true });
         } catch (_) {}
       }
 
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: profile.email,
+        email,
         password,
       });
 
@@ -61,7 +55,7 @@ export default function Login() {
           setLoading(false);
           return;
         }
-        setError('Incorrect password. Please try again.');
+        setError('Incorrect email or password. Please try again.');
         setLoading(false);
         return;
       }
@@ -356,15 +350,15 @@ export default function Login() {
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="anim-field1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Student ID</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                       </svg>
                     </div>
-                    <input type="text" value={studentId} onChange={(e) => setStudentId(e.target.value)}
-                      className="input-field" placeholder="Enter your student ID" required />
+                    <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                      className="input-field" placeholder="Enter your email address" required />
                   </div>
                 </div>
 
