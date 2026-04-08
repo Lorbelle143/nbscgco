@@ -72,6 +72,43 @@ export default function InventoryForm() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
+  // Auto-save draft to localStorage every 30 seconds when dirty
+  const DRAFT_KEY = `inventory_draft_${user?.id || 'admin'}`;
+  useEffect(() => {
+    if (!isDirty) return;
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData, savedAt: new Date().toISOString() }));
+        toast.info('Draft auto-saved');
+      } catch { /* storage full — ignore */ }
+    }, 30000);
+    return () => clearTimeout(timer);
+  }, [formData, isDirty]);
+
+  // Restore draft on mount (only for new submissions, not edits)
+  useEffect(() => {
+    if (editId) return;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) return;
+      const { formData: saved, savedAt } = JSON.parse(raw);
+      const age = Date.now() - new Date(savedAt).getTime();
+      if (age < 24 * 60 * 60 * 1000) { // only restore if < 24h old
+        const confirmed = window.confirm(
+          `A draft was auto-saved on ${new Date(savedAt).toLocaleString()}. Restore it?`
+        );
+        if (confirmed) {
+          setFormData(saved);
+          toast.success('Draft restored');
+        } else {
+          localStorage.removeItem(DRAFT_KEY);
+        }
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    } catch { /* corrupt draft — ignore */ }
+  }, []);
+
   useEffect(() => {
     if (editId && (user || isAdminMode)) {
       loadExistingSubmission(editId);
@@ -417,6 +454,7 @@ export default function InventoryForm() {
 
         if (dbError) throw dbError;
         setIsDirty(false);
+        localStorage.removeItem(DRAFT_KEY);
         toast.success('Form submitted successfully!');
       }
 

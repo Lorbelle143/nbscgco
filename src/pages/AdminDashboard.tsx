@@ -2174,6 +2174,109 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {/* Audit Log View */}
+        {viewMode === 'audit-log' && (
+          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+            <div className="p-6 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-gray-800">Audit Log</h3>
+                <p className="text-sm text-gray-500 mt-1">Track all admin actions performed in the system.</p>
+              </div>
+              <button onClick={loadAuditLogs} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition">Refresh</button>
+            </div>
+
+            {/* Filters */}
+            <div className="px-6 py-4 border-b border-gray-100 flex flex-wrap gap-3">
+              <div className="flex-1 min-w-48 relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search by action, table, or details..."
+                  value={auditSearchTerm}
+                  onChange={e => setAuditSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-4 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                />
+              </div>
+              <select
+                value={auditActionFilter}
+                onChange={e => setAuditActionFilter(e.target.value)}
+                className="px-4 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500"
+              >
+                <option value="">All Actions</option>
+                <option value="create">Create</option>
+                <option value="update">Update</option>
+                <option value="delete">Delete</option>
+                <option value="export">Export</option>
+                <option value="login">Login</option>
+              </select>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              {(() => {
+                const filtered = auditLogs.filter(log => {
+                  const matchSearch = !auditSearchTerm ||
+                    (log.action || '').toLowerCase().includes(auditSearchTerm.toLowerCase()) ||
+                    (log.table_name || '').toLowerCase().includes(auditSearchTerm.toLowerCase()) ||
+                    (log.details || '').toLowerCase().includes(auditSearchTerm.toLowerCase());
+                  const matchAction = !auditActionFilter || (log.action || '').toLowerCase() === auditActionFilter;
+                  return matchSearch && matchAction;
+                });
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="p-12 text-center text-gray-400">
+                      <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                      </svg>
+                      <p className="font-medium">{auditSearchTerm || auditActionFilter ? 'No logs match your filters' : 'No audit logs yet'}</p>
+                    </div>
+                  );
+                }
+
+                const actionColor: Record<string, string> = {
+                  create: 'bg-green-100 text-green-700',
+                  update: 'bg-blue-100 text-blue-700',
+                  delete: 'bg-red-100 text-red-700',
+                  export: 'bg-purple-100 text-purple-700',
+                  login:  'bg-gray-100 text-gray-700',
+                };
+
+                return (
+                  <table className="w-full text-sm min-w-[600px]">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Table</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Details</th>
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {filtered.map((log, i) => (
+                        <tr key={log.id || i} className="hover:bg-gray-50 transition">
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold capitalize ${actionColor[log.action?.toLowerCase()] || 'bg-gray-100 text-gray-600'}`}>
+                              {log.action}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-600 font-mono text-xs">{log.table_name}</td>
+                          <td className="px-4 py-3 text-gray-700 max-w-xs truncate" title={log.details}>{log.details}</td>
+                          <td className="px-4 py-3 text-gray-400 text-xs whitespace-nowrap">
+                            {new Date(log.performed_at).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                );
+              })()}
+            </div>
+          </div>
+        )}
+
         {/* User Management Modal */}
         {showUserModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
