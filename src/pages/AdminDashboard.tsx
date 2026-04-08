@@ -20,6 +20,8 @@ import { exportSubmissionPDF, exportAllSubmissionsPDF } from '../utils/pdfUtils'
 import { logAudit } from '../utils/auditLog';
 import { notifyPasswordReset, notifySubmissionStatus } from '../utils/emailNotify';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import ConfirmDialog from '../components/ConfirmDialog';
+import EmptyState from '../components/EmptyState';
 
 export default function AdminDashboard() {
   const { signOut, user } = useAuthStore();
@@ -63,6 +65,16 @@ export default function AdminDashboard() {
   const [studentsPage, setStudentsPage] = useState(1);
   const [studentListView, setStudentListView] = useState<'grid' | 'list'>('grid');
   const [submissionListView, setSubmissionListView] = useState<'grid' | 'list'>('grid');
+
+  // Confirm dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    open: boolean; title: string; message: string; onConfirm: () => void;
+  }>({ open: false, title: '', message: '', onConfirm: () => {} });
+
+  const showConfirm = (title: string, message: string, onConfirm: () => void) => {
+    setConfirmDialog({ open: true, title, message, onConfirm });
+  };
+  const closeConfirm = () => setConfirmDialog(d => ({ ...d, open: false }));
   const [userFormData, setUserFormData] = useState({
     full_name: '',
     student_id: '',
@@ -253,20 +265,26 @@ export default function AdminDashboard() {
 
   const handleBulkDeleteSubmissions = async () => {
     if (selectedSubmissionIds.size === 0) return;
-    if (!confirm(`Delete ${selectedSubmissionIds.size} selected submission(s)? This cannot be undone.`)) return;
-    try {
-      const { error } = await supabase
-        .from('inventory_submissions')
-        .delete()
-        .in('id', Array.from(selectedSubmissionIds));
-      if (error) throw error;
-      await logAudit('delete', 'inventory_submission', 'bulk', `Bulk deleted ${selectedSubmissionIds.size} submissions`);
-      toast.success(`${selectedSubmissionIds.size} submissions deleted`);
-      setSelectedSubmissionIds(new Set());
-      loadData();
-    } catch (error: any) {
-      toast.error('Bulk delete failed: ' + error.message);
-    }
+    showConfirm(
+      'Delete Selected Submissions',
+      `Are you sure you want to delete ${selectedSubmissionIds.size} selected submission(s)? This cannot be undone.`,
+      async () => {
+        closeConfirm();
+        try {
+          const { error } = await supabase
+            .from('inventory_submissions')
+            .delete()
+            .in('id', Array.from(selectedSubmissionIds));
+          if (error) throw error;
+          await logAudit('delete', 'inventory_submission', 'bulk', `Bulk deleted ${selectedSubmissionIds.size} submissions`);
+          toast.success(`${selectedSubmissionIds.size} submissions deleted`);
+          setSelectedSubmissionIds(new Set());
+          loadData();
+        } catch (error: any) {
+          toast.error('Bulk delete failed: ' + error.message);
+        }
+      }
+    );
   };
 
   const toggleSelectSubmission = (id: string) => {
@@ -400,53 +418,37 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteStudent = async (id: string, studentName: string) => {
-    if (!confirm(`Are you sure you want to delete ${studentName}'s profile?\n\nThis will remove their profile and all inventory submissions.\n\nThis action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      setActionLoading(true);
-      const client = supabaseAdmin || supabase;
-
-      // Get student_id first
-      const { data: studentProfile } = await client
-        .from('profiles')
-        .select('student_id')
-        .eq('id', id)
-        .single();
-
-      if (studentProfile?.student_id) {
-        // Delete all related records to avoid orphaned data
-        await Promise.allSettled([
-          client.from('inventory_submissions').delete().eq('student_id', studentProfile.student_id),
-          client.from('mental_health_assessments').delete().eq('student_id', studentProfile.student_id),
-          client.from('student_notifications').delete().eq('student_id', studentProfile.student_id),
-          client.from('consent_records').delete().eq('student_id', studentProfile.student_id),
-          client.from('password_reset_requests').delete().eq('student_id', studentProfile.student_id),
-        ]);
+    showConfirm(
+      'Delete Student',
+      `Delete ${studentName}'s profile? This will remove their profile, inventory submissions, mental health records, and all related data. This cannot be undone.`,
+      async () => {
+        closeConfirm();
+        try {
+          setActionLoading(true);
+          const client = supabaseAdmin || supabase;
+          const { data: studentProfile } = await client.from('profiles').select('student_id').eq('id', id).single();
+          if (studentProfile?.student_id) {
+            await Promise.allSettled([
+              client.from('inventory_submissions').delete().eq('student_id', studentProfile.student_id),
+              client.from('mental_health_assessments').delete().eq('student_id', studentProfile.student_id),
+              client.from('student_notifications').delete().eq('student_id', studentProfile.student_id),
+              client.from('consent_records').delete().eq('student_id', studentProfile.student_id),
+              client.from('password_reset_requests').delete().eq('student_id', studentProfile.student_id),
+            ]);
+          }
+          const { error: profileError } = await client.from('profiles').delete().eq('id', id);
+          if (profileError) throw profileError;
+          if (supabaseAdmin) await supabaseAdmin.auth.admin.deleteUser(id);
+          await logAudit('delete', 'profile', id, `Deleted student profile: ${studentName}`);
+          toast.success('Student deleted successfully');
+          loadData();
+        } catch (error: any) {
+          toast.error('Error deleting student: ' + (error.message || 'Unknown error'));
+        } finally {
+          setActionLoading(false);
+        }
       }
-
-      const { error: profileError } = await client
-        .from('profiles')
-        .delete()
-        .eq('id', id);
-
-      if (profileError) throw profileError;
-
-      // Also delete auth user
-      if (supabaseAdmin) {
-        await supabaseAdmin.auth.admin.deleteUser(id);
-      }
-
-      await logAudit('delete', 'profile', id, `Deleted student profile: ${studentName}`);
-      toast.success('Student deleted successfully');
-      loadData();
-    } catch (error: any) {
-      console.error('Delete error:', error);
-      toast.error('Error deleting student: ' + (error.message || 'Unknown error'));
-    } finally {
-      setActionLoading(false);
-    }
+    );
   };
 
   const handleViewStudent = (student: any) => {
@@ -506,52 +508,40 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteUser = async (userId: string, userName: string) => {
-    if (!confirm(`Are you sure you want to delete ${userName}'s account?\n\nThis will permanently remove their profile and login access.\n\nThis action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      setActionLoading(true);
-      const client = supabaseAdmin || supabase;
-
-      // Get student_id to clean up related records
-      const { data: studentProfile } = await client
-        .from('profiles')
-        .select('student_id')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (studentProfile?.student_id) {
-        await Promise.allSettled([
-          client.from('inventory_submissions').delete().eq('student_id', studentProfile.student_id),
-          client.from('mental_health_assessments').delete().eq('student_id', studentProfile.student_id),
-          client.from('student_notifications').delete().eq('student_id', studentProfile.student_id),
-          client.from('consent_records').delete().eq('student_id', studentProfile.student_id),
-          client.from('password_reset_requests').delete().eq('student_id', studentProfile.student_id),
-        ]);
+    showConfirm(
+      'Delete User Account',
+      `Delete ${userName}'s account? This will permanently remove their profile and login access. This cannot be undone.`,
+      async () => {
+        closeConfirm();
+        try {
+          setActionLoading(true);
+          const client = supabaseAdmin || supabase;
+          const { data: studentProfile } = await client.from('profiles').select('student_id').eq('id', userId).maybeSingle();
+          if (studentProfile?.student_id) {
+            await Promise.allSettled([
+              client.from('inventory_submissions').delete().eq('student_id', studentProfile.student_id),
+              client.from('mental_health_assessments').delete().eq('student_id', studentProfile.student_id),
+              client.from('student_notifications').delete().eq('student_id', studentProfile.student_id),
+              client.from('consent_records').delete().eq('student_id', studentProfile.student_id),
+              client.from('password_reset_requests').delete().eq('student_id', studentProfile.student_id),
+            ]);
+          }
+          const { error: profileError } = await client.from('profiles').delete().eq('id', userId);
+          if (profileError) throw new Error('Profile delete failed: ' + profileError.message);
+          if (supabaseAdmin) {
+            const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+            if (authError) console.warn('Auth user delete warning:', authError.message);
+          }
+          await logAudit('delete', 'profile', userId, `Deleted user account: ${userName}`);
+          toast.success(`${userName} deleted successfully`);
+          loadData();
+        } catch (error: any) {
+          toast.error('Failed to delete user: ' + error.message);
+        } finally {
+          setActionLoading(false);
+        }
       }
-
-      const { error: profileError } = await client
-        .from('profiles')
-        .delete()
-        .eq('id', userId);
-
-      if (profileError) throw new Error('Profile delete failed: ' + profileError.message);
-
-      // Also delete auth user if service role key is available
-      if (supabaseAdmin) {
-        const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
-        if (authError) console.warn('Auth user delete warning:', authError.message);
-      }
-
-      await logAudit('delete', 'profile', userId, `Deleted user account: ${userName}`);
-      toast.success(`${userName} deleted successfully`);
-      loadData();
-    } catch (error: any) {
-      toast.error('Failed to delete user: ' + error.message);
-    } finally {
-      setActionLoading(false);
-    }
+    );
   };
 
   const handleUserFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -691,50 +681,29 @@ export default function AdminDashboard() {
   };
 
   const handleDelete = async (id: string, studentName: string) => {
-    if (!confirm(`Are you sure you want to delete ${studentName}'s record?\n\nThis will permanently remove:\n- Student inventory record\n- Associated photo\n\nThis action cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      // First, get the submission to find the photo URL
-      const { data: submission } = await supabase
-        .from('inventory_submissions')
-        .select('photo_url')
-        .eq('id', id)
-        .single();
-
-      // Delete the record from database
-      const { error: deleteError } = await supabase
-        .from('inventory_submissions')
-        .delete()
-        .eq('id', id);
-
-      if (deleteError) {
-        console.error('Delete error:', deleteError);
-        throw new Error(deleteError.message);
-      }
-
-      // Try to delete the photo from storage (optional, won't fail if photo doesn't exist)
-      if (submission?.photo_url) {
+    showConfirm(
+      'Delete Submission',
+      `Delete ${studentName}'s inventory record? This will permanently remove the record and associated photo. This cannot be undone.`,
+      async () => {
+        closeConfirm();
         try {
-          const photoPath = submission.photo_url.split('/').pop();
-          if (photoPath) {
-            await supabase.storage
-              .from('student-photos')
-              .remove([photoPath]);
+          const { data: submission } = await supabase.from('inventory_submissions').select('photo_url').eq('id', id).single();
+          const { error: deleteError } = await supabase.from('inventory_submissions').delete().eq('id', id);
+          if (deleteError) throw new Error(deleteError.message);
+          if (submission?.photo_url) {
+            try {
+              const photoPath = submission.photo_url.split('/').pop();
+              if (photoPath) await supabase.storage.from('student-photos').remove([photoPath]);
+            } catch { /* ignore photo deletion failure */ }
           }
-        } catch (photoError) {
-          console.log('Photo deletion skipped:', photoError);
-          // Continue even if photo deletion fails
+          toast.success('Record deleted successfully');
+          await logAudit('delete', 'inventory_submission', id, `Deleted submission for ${studentName}`);
+          loadData();
+        } catch (error: any) {
+          toast.error('Error deleting record: ' + (error.message || 'Unknown error'));
         }
       }
-
-      toast.success('Record deleted successfully');
-      await logAudit('delete', 'inventory_submission', id, `Deleted submission for ${studentName}`);
-      loadData();
-    } catch (error: any) {
-      toast.error('Error deleting record: ' + (error.message || 'Unknown error'));
-    }
+    );
   };
 
   const handleSave = async (formData: any) => {
@@ -960,6 +929,7 @@ export default function AdminDashboard() {
   }
 
   return (
+    <>
     <div className="flex h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -1687,9 +1657,20 @@ export default function AdminDashboard() {
                 </div>
               )}
 
+              {/* Empty state — students grid view */}
+              {studentListView === 'grid' && paginatedStudents.length === 0 && (
+                <EmptyState
+                  icon="👥"
+                  title={searchTerm ? 'No students match your search' : showNotSubmitted ? 'All students have submitted' : 'No students registered yet'}
+                  description={searchTerm ? 'Try a different search term.' : 'Register a student to get started.'}
+                  action={!searchTerm ? { label: 'Register Student', onClick: handleCreateUser } : undefined}
+                />
+              )}
+
               {/* List View */}
               {studentListView === 'list' && (
-                <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden min-w-[640px]">
                   {/* Header */}
                   <div className="grid grid-cols-12 gap-4 px-4 py-3 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                     <div className="col-span-4">Student</div>
@@ -1733,8 +1714,19 @@ export default function AdminDashboard() {
                     );
                   })}
                 </div>
+                </div>
               )}
             </div>
+          )}
+
+          {/* Empty state — students list view */}
+          {viewMode === 'students' && studentListView === 'list' && paginatedStudents.length === 0 && (
+            <EmptyState
+              icon="👥"
+              title={searchTerm ? 'No students match your search' : showNotSubmitted ? 'All students have submitted' : 'No students registered yet'}
+              description={searchTerm ? 'Try a different search term.' : 'Register a student to get started.'}
+              action={!searchTerm ? { label: 'Register Student', onClick: handleCreateUser } : undefined}
+            />
           )}
 
           {/* Submissions View */}
@@ -1921,9 +1913,20 @@ export default function AdminDashboard() {
             </div>
             )}
 
+            {/* Empty state — submissions grid */}
+            {submissionListView === 'grid' && paginatedSubmissions.length === 0 && (
+              <EmptyState
+                icon="📋"
+                title={searchTerm || submissionCourseFilter || submissionYearFilter ? 'No submissions match your search' : 'No submissions yet'}
+                description={searchTerm || submissionCourseFilter || submissionYearFilter ? 'Try adjusting your filters.' : 'Students who submit their inventory form will appear here.'}
+                action={!searchTerm && !submissionCourseFilter ? { label: 'Add Student', onClick: handleCreate } : undefined}
+              />
+            )}
+
             {/* List View */}
             {submissionListView === 'list' && (
-              <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+              <div className="divide-y divide-gray-100 border border-gray-200 rounded-xl overflow-hidden min-w-[700px]">
                 <div className="grid grid-cols-12 gap-3 px-4 py-3 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   <div className="col-span-1"></div>
                   <div className="col-span-3">Student</div>
@@ -1973,6 +1976,15 @@ export default function AdminDashboard() {
                   );
                 })}
               </div>
+              </div>
+            )}
+            {/* Empty state — submissions list */}
+            {submissionListView === 'list' && paginatedSubmissions.length === 0 && (
+              <EmptyState
+                icon="📋"
+                title={searchTerm ? 'No submissions match your search' : 'No submissions yet'}
+                description={searchTerm ? 'Try a different search term.' : 'Students who submit their inventory form will appear here.'}
+              />
             )}
             </>
           )}
@@ -2535,6 +2547,17 @@ export default function AdminDashboard() {
         </main>
       </div>
     </div>
+
+    {/* Global Confirm Dialog */}
+    <ConfirmDialog
+      open={confirmDialog.open}
+      title={confirmDialog.title}
+      message={confirmDialog.message}
+      confirmLabel="Delete"
+      onConfirm={confirmDialog.onConfirm}
+      onCancel={closeConfirm}
+    />
+    </>
   );
 }
 
