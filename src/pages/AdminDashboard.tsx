@@ -416,10 +416,14 @@ export default function AdminDashboard() {
         .single();
 
       if (studentProfile?.student_id) {
-        await client
-          .from('inventory_submissions')
-          .delete()
-          .eq('student_id', studentProfile.student_id);
+        // Delete all related records to avoid orphaned data
+        await Promise.allSettled([
+          client.from('inventory_submissions').delete().eq('student_id', studentProfile.student_id),
+          client.from('mental_health_assessments').delete().eq('student_id', studentProfile.student_id),
+          client.from('student_notifications').delete().eq('student_id', studentProfile.student_id),
+          client.from('consent_records').delete().eq('student_id', studentProfile.student_id),
+          client.from('password_reset_requests').delete().eq('student_id', studentProfile.student_id),
+        ]);
       }
 
       const { error: profileError } = await client
@@ -434,6 +438,7 @@ export default function AdminDashboard() {
         await supabaseAdmin.auth.admin.deleteUser(id);
       }
 
+      await logAudit('delete', 'profile', id, `Deleted student profile: ${studentName}`);
       toast.success('Student deleted successfully');
       loadData();
     } catch (error: any) {
@@ -507,9 +512,26 @@ export default function AdminDashboard() {
 
     try {
       setActionLoading(true);
+      const client = supabaseAdmin || supabase;
 
-      // Delete profile first (cascade will handle related records if set up)
-      const { error: profileError } = await supabase
+      // Get student_id to clean up related records
+      const { data: studentProfile } = await client
+        .from('profiles')
+        .select('student_id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (studentProfile?.student_id) {
+        await Promise.allSettled([
+          client.from('inventory_submissions').delete().eq('student_id', studentProfile.student_id),
+          client.from('mental_health_assessments').delete().eq('student_id', studentProfile.student_id),
+          client.from('student_notifications').delete().eq('student_id', studentProfile.student_id),
+          client.from('consent_records').delete().eq('student_id', studentProfile.student_id),
+          client.from('password_reset_requests').delete().eq('student_id', studentProfile.student_id),
+        ]);
+      }
+
+      const { error: profileError } = await client
         .from('profiles')
         .delete()
         .eq('id', userId);
@@ -522,6 +544,7 @@ export default function AdminDashboard() {
         if (authError) console.warn('Auth user delete warning:', authError.message);
       }
 
+      await logAudit('delete', 'profile', userId, `Deleted user account: ${userName}`);
       toast.success(`${userName} deleted successfully`);
       loadData();
     } catch (error: any) {

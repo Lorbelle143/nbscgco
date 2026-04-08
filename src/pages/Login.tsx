@@ -85,11 +85,19 @@ export default function Login() {
             const { error: pwUpdateError } = await supabase.auth.updateUser({
               password: finalProfileCheck.pending_password,
             });
-            if (!pwUpdateError) {
-              await supabase.from('profiles').update({ pending_password: null }).eq('id', data.user.id);
+            if (pwUpdateError) {
+              // Password update failed — sign out and show error so user can retry
+              await supabase.auth.signOut();
+              setError('Failed to apply your new password. Please contact the administrator.');
+              setLoading(false);
+              return;
             }
+            await supabase.from('profiles').update({ pending_password: null }).eq('id', data.user.id);
           } catch (e) {
-            console.error('Failed to apply pending password:', e);
+            await supabase.auth.signOut();
+            setError('An error occurred while updating your password. Please try again.');
+            setLoading(false);
+            return;
           }
         }
 
