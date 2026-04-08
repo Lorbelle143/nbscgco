@@ -253,29 +253,29 @@ export default function Home() {
               <div className="absolute inset-0 rounded-3xl bg-gradient-to-t from-[#05080f]/40 via-transparent to-transparent" />
 
               {/* Badge — bottom left */}
-              <div className="absolute -bottom-5 -left-6 gc rounded-2xl px-4 py-3 flex items-center gap-3 shadow-2xl">
-                <div className="w-9 h-9 bg-green-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <div className="absolute -bottom-5 -left-6 bg-[#0d1526]/95 border border-white/[0.12] rounded-2xl px-4 py-3 flex items-center gap-3 shadow-2xl backdrop-blur-sm">
+                <div className="w-9 h-9 bg-green-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
                   <svg className="w-4 h-4 text-green-400" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
                   </svg>
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-500 font-medium">System Status</p>
-                  <p className="text-xs font-bold text-green-400">Online &amp; Secure</p>
+                  <p className="text-[10px] text-gray-400 font-medium">System Status</p>
+                  <p className="text-sm font-bold text-white">Online &amp; Secure</p>
                 </div>
               </div>
 
               {/* Badge — top right */}
-              <div className="absolute -top-5 -right-6 gc rounded-2xl px-4 py-3 flex items-center gap-3 shadow-2xl">
-                <div className="w-9 h-9 bg-blue-500/15 rounded-xl flex items-center justify-center flex-shrink-0">
+              <div className="absolute -top-5 -right-6 bg-[#0d1526]/95 border border-white/[0.12] rounded-2xl px-4 py-3 flex items-center gap-3 shadow-2xl backdrop-blur-sm">
+                <div className="w-9 h-9 bg-blue-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
                   <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                       d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
                   </svg>
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-500 font-medium">Students Served</p>
-                  <p className="text-xs font-bold text-blue-400">500+</p>
+                  <p className="text-[10px] text-gray-400 font-medium">Students Served</p>
+                  <p className="text-sm font-bold text-white">500+</p>
                 </div>
               </div>
             </div>
