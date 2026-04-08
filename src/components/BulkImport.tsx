@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { supabase, supabaseAdmin } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { logAudit } from '../utils/auditLog';
@@ -20,57 +21,37 @@ export default function BulkImport({ onDone }: { onDone: () => void }) {
   const [done, setDone] = useState(false);
   const [progress, setProgress] = useState(0);
 
-  const parseCSV = (text: string): ImportRow[] => {
-    const lines = text.trim().split('\n');
-    if (lines.length < 2) return [];
-
-    const parseLine = (line: string): string[] => {
-      const cols: string[] = [];
-      let current = '';
-      let inQuotes = false;
-      for (let i = 0; i < line.length; i++) {
-        const ch = line[i];
-        if (ch === '"') {
-          if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
-          else inQuotes = !inQuotes;
-        } else if (ch === ',' && !inQuotes) {
-          cols.push(current.trim());
-          current = '';
-        } else {
-          current += ch;
-        }
-      }
-      cols.push(current.trim());
-      return cols;
-    };
-
-    return lines.slice(1).map(line => {
-      const cols = parseLine(line);
-      return {
-        full_name: cols[0] || '',
-        student_id: cols[1] || '',
-        email: cols[2] || '',
-        password: cols[3] || '',
+  const parseRows = (raw: any[][]): ImportRow[] =>
+    raw.slice(1)
+      .map(cols => ({
+        full_name: String(cols[0] || '').trim(),
+        student_id: String(cols[1] || '').trim(),
+        email: String(cols[2] || '').trim(),
+        password: String(cols[3] || '').trim(),
         status: 'pending' as const,
-      };
-    }).filter(r => r.full_name && r.student_id && r.email);
-  };
+      }))
+      .filter(r => r.full_name && r.student_id && r.email);
 
   const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
-      const parsed = parseCSV(ev.target?.result as string);
-      if (parsed.length === 0) {
-        toast.error('No valid rows found. Check CSV format.');
-        return;
+      try {
+        const data = new Uint8Array(ev.target?.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const raw: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        const parsed = parseRows(raw);
+        if (parsed.length === 0) { toast.error('No valid rows found. Check the Excel format.'); return; }
+        setRows(parsed);
+        setDone(false);
+        setProgress(0);
+      } catch {
+        toast.error('Failed to read file. Make sure it is a valid .xlsx file.');
       }
-      setRows(parsed);
-      setDone(false);
-      setProgress(0);
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
   };
 
   const handleImport = async () => {
@@ -81,37 +62,23 @@ export default function BulkImport({ onDone }: { onDone: () => void }) {
     for (let i = 0; i < updated.length; i++) {
       const row = updated[i];
       try {
-        // Validate email — accept any valid email
-        if (!row.email || !row.email.includes('@')) {
-          throw new Error('Invalid email address');
-        }
-        if (!row.password || row.password.length < 6) {
-          throw new Error('Password must be at least 6 characters');
-        }
+        if (!row.email || !row.email.includes('@')) throw new Error('Invalid email address');
+        if (!row.password || row.password.length < 6) throw new Error('Password must be at least 6 characters');
 
-        // Check duplicate student_id
-        const { data: existing } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('student_id', row.student_id)
-          .maybeSingle();
+        const { data: existing } = await supabase.from('profiles').select('id').eq('student_id', row.student_id).maybeSingle();
         if (existing) throw new Error('Student ID already exists');
 
-        // Create auth user — use admin client if available (bypasses email confirmation)
         let userId: string | null = null;
         if (supabaseAdmin) {
           const { data: adminData, error: adminError } = await supabaseAdmin.auth.admin.createUser({
-            email: row.email,
-            password: row.password,
-            email_confirm: true,
+            email: row.email, password: row.password, email_confirm: true,
             user_metadata: { full_name: row.full_name, student_id: row.student_id },
           });
           if (adminError) throw adminError;
           userId = adminData.user?.id || null;
         } else {
           const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: row.email,
-            password: row.password,
+            email: row.email, password: row.password,
             options: { data: { full_name: row.full_name, student_id: row.student_id } },
           });
           if (authError) throw authError;
@@ -119,13 +86,8 @@ export default function BulkImport({ onDone }: { onDone: () => void }) {
         }
         if (!userId) throw new Error('Failed to create auth user');
 
-        // Create profile
         const { error: profileError } = await (supabaseAdmin || supabase).from('profiles').insert({
-          id: userId,
-          full_name: row.full_name,
-          student_id: row.student_id,
-          email: row.email,
-          is_admin: false,
+          id: userId, full_name: row.full_name, student_id: row.student_id, email: row.email, is_admin: false,
         });
         if (profileError && !profileError.message.includes('duplicate')) throw profileError;
 
@@ -146,13 +108,14 @@ export default function BulkImport({ onDone }: { onDone: () => void }) {
   };
 
   const downloadTemplate = () => {
-    const csv = 'full_name,student_id,email,password\nJuan Dela Cruz,2024-0001,juandelacruz@gmail.com,password123\n';
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'bulk_import_template.csv';
-    a.click();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['full_name', 'student_id', 'email', 'password'],
+      ['Juan Dela Cruz', '2024-0001', 'juandelacruz@gmail.com', 'password123'],
+    ]);
+    ws['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 15 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Students');
+    XLSX.writeFile(wb, 'bulk_import_template.xlsx');
   };
 
   const successCount = rows.filter(r => r.status === 'success').length;
@@ -161,19 +124,15 @@ export default function BulkImport({ onDone }: { onDone: () => void }) {
   return (
     <div className="space-y-6">
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-5">
-        <h3 className="font-semibold text-blue-800 mb-2">CSV Format</h3>
+        <h3 className="font-semibold text-blue-800 mb-2">Excel Format (.xlsx)</h3>
         <p className="text-sm text-blue-700 mb-3">
-          Upload a CSV file with columns: <code className="bg-blue-100 px-1 rounded">full_name, student_id, email, password</code>
+          Upload an Excel file with columns: <code className="bg-blue-100 px-1 rounded">full_name, student_id, email, password</code>
         </p>
-        <button
-          onClick={downloadTemplate}
-          className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition font-medium"
-        >
-          Download Template CSV
+        <button onClick={downloadTemplate} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition font-medium">
+          📥 Download Template (.xlsx)
         </button>
       </div>
 
-      {/* File Upload */}
       <div
         className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-orange-400 transition cursor-pointer"
         onClick={() => fileRef.current?.click()}
@@ -181,12 +140,11 @@ export default function BulkImport({ onDone }: { onDone: () => void }) {
         <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
-        <p className="text-gray-600 font-medium">Click to upload CSV file</p>
+        <p className="text-gray-600 font-medium">Click to upload Excel file (.xlsx)</p>
         <p className="text-sm text-gray-400 mt-1">or drag and drop</p>
-        <input ref={fileRef} type="file" accept=".csv" onChange={handleFile} className="hidden" />
+        <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleFile} className="hidden" />
       </div>
 
-      {/* Preview Table */}
       {rows.length > 0 && (
         <div className="bg-white rounded-xl shadow border border-gray-200 overflow-hidden">
           <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
@@ -239,11 +197,8 @@ export default function BulkImport({ onDone }: { onDone: () => void }) {
 
           {!done && (
             <div className="px-5 py-4 border-t border-gray-100">
-              <button
-                onClick={handleImport}
-                disabled={importing}
-                className="px-6 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-medium disabled:opacity-50"
-              >
+              <button onClick={handleImport} disabled={importing}
+                className="px-6 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition font-medium disabled:opacity-50">
                 {importing ? 'Importing...' : `Import ${rows.length} Students`}
               </button>
             </div>

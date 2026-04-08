@@ -5,7 +5,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { notifyAdminPasswordResetRequest } from '../utils/emailNotify';
 
 export default function ForgotPassword() {
-  const [studentId, setStudentId] = useState('');
+  const [email, setEmail] = useState('');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -17,16 +17,15 @@ export default function ForgotPassword() {
     setLoading(true);
 
     try {
-      // Look up the student profile by student_id
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('full_name, email, student_id')
-        .eq('student_id', studentId.trim())
+        .eq('email', email.trim().toLowerCase())
         .maybeSingle();
 
       if (profileError) throw profileError;
       if (!profile) {
-        setError('No account found with that Student ID. Please check and try again.');
+        setError('No account found with that email. Please check and try again.');
         setLoading(false);
         return;
       }
@@ -35,7 +34,7 @@ export default function ForgotPassword() {
       const { data: existing } = await supabase
         .from('password_reset_requests')
         .select('id')
-        .eq('student_id', studentId.trim())
+        .eq('email', email.trim().toLowerCase())
         .eq('status', 'pending')
         .maybeSingle();
 
@@ -45,7 +44,6 @@ export default function ForgotPassword() {
         return;
       }
 
-      // Submit the request
       const { error: insertError } = await supabase
         .from('password_reset_requests')
         .insert({
@@ -58,7 +56,6 @@ export default function ForgotPassword() {
 
       if (insertError) throw insertError;
 
-      // Notify admin silently
       try {
         const { data: adminProfile } = await supabase
           .from('profiles').select('email').eq('is_admin', true).limit(1).single();
@@ -141,23 +138,23 @@ export default function ForgotPassword() {
             <div className="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
               <p className="font-semibold mb-1">How it works:</p>
               <ol className="list-decimal list-inside space-y-1 text-blue-600">
-                <li>Submit your Student ID below</li>
+                <li>Enter your registered email below</li>
                 <li>The Guidance Office will set a new password for you</li>
-                <li>Log in with your Student ID — your new password will be applied automatically</li>
+                <li>Log in with your email — your new password will be applied automatically</li>
               </ol>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Student ID <span className="text-red-500">*</span>
+                  Email Address <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="text"
-                  value={studentId}
-                  onChange={e => setStudentId(e.target.value)}
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all"
-                  placeholder="e.g. 2024-00001"
+                  placeholder="e.g. yourname@gmail.com"
                   required
                 />
               </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 
@@ -171,6 +172,60 @@ export default function ReportsExport() {
     toast.success('CSV exported');
   };
 
+  const exportExcel = () => {
+    if (!stats) return;
+    const wb = XLSX.utils.book_new();
+
+    // Sheet 1 — Assessments
+    const assessmentData = [
+      ['Student Name', 'Student ID', 'Score', 'Risk Level', 'Counseling Status', 'Is Counseled', 'Assessment Date'],
+      ...stats.assessments.map((a: any) => [
+        a.full_name, a.student_id, a.total_score, a.risk_level,
+        a.counseling_status || 'pending', a.is_counseled ? 'Yes' : 'No',
+        new Date(a.created_at).toLocaleDateString('en-PH'),
+      ]),
+    ];
+    const ws1 = XLSX.utils.aoa_to_sheet(assessmentData);
+    ws1['!cols'] = [{ wch: 25 }, { wch: 14 }, { wch: 8 }, { wch: 18 }, { wch: 18 }, { wch: 12 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, ws1, 'Assessments');
+
+    // Sheet 2 — Summary
+    const summaryData = [
+      ['Metric', 'Value'],
+      ['Registered Students', stats.totalStudents],
+      ['Total Assessments', stats.totalAssessments],
+      ['Avg. Assessment Score', stats.avgScore],
+      ['Doing Well', stats.doingWell],
+      ['Need Support', stats.needSupport],
+      ['Immediate Support', stats.immediateSupport],
+      ['Counseled', stats.counseled],
+      ['Total Sessions', stats.totalSessions],
+      ['Completed Sessions', stats.completedSessions],
+      ['No Show Sessions', stats.noShowSessions],
+      ['Consent Signed', stats.consentSigned],
+      ['Consent Pending', stats.consentPending],
+      ['Consent Declined', stats.consentDeclined],
+    ];
+    const ws2 = XLSX.utils.aoa_to_sheet(summaryData);
+    ws2['!cols'] = [{ wch: 28 }, { wch: 12 }];
+    XLSX.utils.book_append_sheet(wb, ws2, 'Summary');
+
+    // Sheet 3 — Students
+    const studentData = [
+      ['Full Name', 'Student ID', 'Email', 'Registered Date'],
+      ...stats.students.map((s: any) => [
+        s.full_name, s.student_id, s.email,
+        new Date(s.created_at).toLocaleDateString('en-PH'),
+      ]),
+    ];
+    const ws3 = XLSX.utils.aoa_to_sheet(studentData);
+    ws3['!cols'] = [{ wch: 25 }, { wch: 14 }, { wch: 30 }, { wch: 16 }];
+    XLSX.utils.book_append_sheet(wb, ws3, 'Students');
+
+    XLSX.writeFile(wb, `nbsc-guidance-report-${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Excel report exported');
+  };
+
   if (loading) return <div className="text-center py-12 text-gray-500">Loading report data...</div>;
   if (!stats) return null;
 
@@ -193,6 +248,13 @@ export default function ReportsExport() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
             Export CSV (Assessments)
+          </button>
+          <button onClick={exportExcel}
+            className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl font-semibold hover:bg-emerald-700 transition shadow-md">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Export Excel (.xlsx)
           </button>
           <button onClick={loadStats}
             className="flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition">
