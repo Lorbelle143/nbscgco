@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { supabase, supabaseAdmin } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 
-const CAMPUS = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcROE3tdSJOhol7z2c9L5Y6Sawh5ZmEU7GT8Dg&s";
+const CAMPUS = "/nbsc-bg.jpg";
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -275,6 +275,9 @@ export default function Login() {
 
           {/* Back to home */}
           <div className="a5 text-center mt-6 pt-5 border-t border-white/10">
+            <p className="text-[11px] text-white/30 mb-3">
+              🔒 Only authorized NBSC students may access this system.
+            </p>
             <Link to="/" className="inline-flex items-center gap-1.5 text-sm text-white/40 hover:text-white transition-colors">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18"/>

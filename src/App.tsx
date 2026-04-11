@@ -17,6 +17,7 @@ const EditProfile = lazy(() => import('./pages/EditProfile'));
 const MentalHealthAssessment = lazy(() => import('./pages/MentalHealthAssessment'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 const Home = lazy(() => import('./pages/Home'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
 function PageLoader() {
   return (
@@ -55,6 +56,7 @@ function App() {
             <Route path="/admin" element={user && isAdmin ? <AdminDashboard /> : <Navigate to="/login" replace />} />
             <Route path="/inventory-form" element={user ? <InventoryForm /> : <Navigate to="/login" replace />} />
             <Route path="/" element={user ? <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace /> : <Home />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>

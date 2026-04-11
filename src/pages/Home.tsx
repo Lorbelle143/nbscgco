@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-const CAMPUS_IMG = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcROE3tdSJOhol7z2c9L5Y6Sawh5ZmEU7GT8Dg&s";
+const CAMPUS_IMG = "/nbsc-bg.jpg";
 
 const NAV_LINKS = [
   { label: 'Home',     href: '#home' },
@@ -210,12 +210,25 @@ export default function Home() {
             </div>
 
             {/* Headline */}
-            <h1 className="fu1 font-black leading-[1.08] tracking-tight mb-6"
+            <h1 className="fu1 font-black leading-[1.08] tracking-tight mb-4"
               style={{ fontSize: 'clamp(2.4rem, 5vw, 3.6rem)' }}>
               Guidance &amp; Counseling<br />
               <span className="grad-text">Office Management</span><br />
               <span className="grad-text">System</span>
             </h1>
+
+            {/* Official portal notice */}
+            <div className="fu2 inline-flex items-start gap-2 bg-green-500/10 border border-green-500/20 text-green-300 text-[12px] font-semibold px-4 py-2.5 rounded-xl mb-5 max-w-lg">
+              <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+              </svg>
+              <span>This is the <strong>Official Guidance Enrollment Portal</strong> of Northern Bukidnon State College. All student data is secured and confidential.</span>
+            </div>
+
+            {/* Ownership notice */}
+            <div className="fu2 text-[12px] text-white/40 mb-5">
+              This website is owned and managed by the <span className="text-white/60 font-medium">NBSC Guidance Office</span>.
+            </div>
 
             {/* Sub */}
             <p className="fu2 text-white/60 text-[15px] md:text-base max-w-[440px] mb-10 leading-[1.75] mx-auto md:mx-0">
@@ -414,10 +427,32 @@ export default function Home() {
           FOOTER
       ══════════════════════════════════════════ */}
       <footer className="border-t border-white/[0.055] bg-black/25">
+        {/* Official badge bar */}
+        <div className="border-b border-white/[0.04] bg-white/[0.02]">
+          <div className="max-w-7xl mx-auto px-6 py-3 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-[11px] text-green-400 font-semibold">
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+              </svg>
+              Official Website — Northern Bukidnon State College
+            </div>
+            <p className="text-[11px] text-white/30 text-center">
+              Student data is securely stored and used only for official purposes of Northern Bukidnon State College.
+            </p>
+          </div>
+        </div>
+
         <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-5">
           <div className="flex items-center gap-3">
-            <img src="/nbsc-logo.png" alt="NBSC" className="h-7 w-7 object-contain opacity-40" />
-            <span className="text-[12px] text-white/40">NBSC Guidance &amp; Counseling Office</span>
+            <img src="/nbsc-logo.png" alt="NBSC" className="h-8 w-8 object-contain opacity-60" />
+            <div>
+              <p className="text-[12px] text-white/60 font-semibold">NBSC Guidance &amp; Counseling Office</p>
+              <p className="text-[11px] text-white/30">Kihare, Manolo Fortich, Bukidnon · 09360363915</p>
+              <a href="https://www.nbsc.edu.ph" target="_blank" rel="noopener noreferrer"
+                className="text-[11px] text-blue-400/70 hover:text-blue-300 transition-colors">
+                ✉ www.nbsc.edu.ph
+              </a>
+            </div>
           </div>
           <p className="text-[11px] text-white/30">
             © {new Date().getFullYear()} Northern Bukidnon State College. All rights reserved.
@@ -427,6 +462,7 @@ export default function Home() {
               <a key={l.label} href={l.href}
                 className="text-[11px] text-white/40 hover:text-white transition-colors">{l.label}</a>
             ))}
+            <Link to="/privacy-policy" className="text-[11px] text-white/40 hover:text-white transition-colors">Privacy Policy</Link>
           </div>
         </div>
       </footer>

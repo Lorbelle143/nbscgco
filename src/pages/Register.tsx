@@ -4,7 +4,7 @@ import { supabase, supabaseAdmin } from '../lib/supabase';
 import PasswordStrength from '../components/PasswordStrength';
 import { notifyAdminNewRegistration } from '../utils/emailNotify';
 
-const CAMPUS = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcROE3tdSJOhol7z2c9L5Y6Sawh5ZmEU7GT8Dg&s";
+const CAMPUS = "/nbsc-bg.jpg";
 
 export default function Register() {
   const [formData, setFormData] = useState({ email: '', password: '', confirmPassword: '', fullName: '' });
