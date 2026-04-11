@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 
 const CAMPUS_IMG = "/nbsc-bg.jpg";
+const CAMPUS_FALLBACK = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcROE3tdSJOhol7z2c9L5Y6Sawh5ZmEU7GT8Dg&s";
 
 const NAV_LINKS = [
   { label: 'Home',     href: '#home' },
@@ -260,6 +261,7 @@ export default function Home() {
 
               {/* Image */}
               <img src={CAMPUS_IMG} alt="NBSC Campus"
+                onError={e => { (e.target as HTMLImageElement).src = CAMPUS_FALLBACK; }}
                 className="relative w-[420px] h-[280px] object-cover rounded-3xl shadow-[0_32px_80px_rgba(0,0,0,.6)] border border-white/[0.07]" />
 
               {/* Overlay gradient */}
