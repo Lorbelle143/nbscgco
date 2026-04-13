@@ -16,6 +16,11 @@ export default function InventoryForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [currentSection, setCurrentSection] = useState(1);
+
+  const goToSection = (n: number) => {
+    setCurrentSection(n);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const [isEditMode, setIsEditMode] = useState(false);
   const [existingPhotoUrl, setExistingPhotoUrl] = useState('');
   const [formData, setFormData] = useState({
@@ -33,7 +38,7 @@ export default function InventoryForm() {
     fatherCompany: '', fatherIncome: '', fatherContact: '',
     guardianName: '', guardianAge: '', guardianEthnicity: '', guardianReligion: '',
     guardianEducation: '', guardianOccupation: '', guardianCompany: '', guardianIncome: '',
-    guardianContact: '', guardianAddress: '',
+    guardianContact: '', guardianAddress: '', guardianBirthday: '',
     parentsStatus: '', numberOfSiblings: '', birthOrder: '',
     elementarySchool: '', elementaryYears: '', elementaryAwards: '',
     juniorHighSchool: '', juniorHighYears: '', juniorHighAwards: '',
@@ -53,6 +58,7 @@ export default function InventoryForm() {
     studentSignatureUrl: '', parentSignatureUrl: '',
   });
   const [isDirty, setIsDirty] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
@@ -79,11 +85,18 @@ export default function InventoryForm() {
     const timer = setTimeout(() => {
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData, savedAt: new Date().toISOString() }));
+        setHasDraft(true);
         toast.info('Draft auto-saved');
       } catch { /* storage full — ignore */ }
     }, 30000);
     return () => clearTimeout(timer);
   }, [formData, isDirty]);
+
+  const clearDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    setHasDraft(false);
+    toast.success('Draft cleared');
+  };
 
   // Restore draft on mount (only for new submissions, not edits)
   useEffect(() => {
@@ -94,6 +107,7 @@ export default function InventoryForm() {
       const { formData: saved, savedAt } = JSON.parse(raw);
       const age = Date.now() - new Date(savedAt).getTime();
       if (age < 24 * 60 * 60 * 1000) { // only restore if < 24h old
+        setHasDraft(true);
         const confirmed = window.confirm(
           `A draft was auto-saved on ${new Date(savedAt).toLocaleString()}. Restore it?`
         );
@@ -102,6 +116,7 @@ export default function InventoryForm() {
           toast.success('Draft restored');
         } else {
           localStorage.removeItem(DRAFT_KEY);
+          setHasDraft(false);
         }
       } else {
         localStorage.removeItem(DRAFT_KEY);
@@ -221,6 +236,7 @@ export default function InventoryForm() {
           guardianIncome: loadedFormData.guardianIncome || '',
           guardianContact: loadedFormData.guardianContact || '',
           guardianAddress: loadedFormData.guardianAddress || '',
+          guardianBirthday: loadedFormData.guardianBirthday || '',
           parentsStatus: loadedFormData.parentsStatus || '',
           numberOfSiblings: loadedFormData.numberOfSiblings || '',
           birthOrder: loadedFormData.birthOrder || '',
@@ -372,7 +388,7 @@ export default function InventoryForm() {
     if (missing.length > 0) {
       setFieldErrors(errors);
       setError(`Please fill in all required fields: ${missing.join(', ')}`);
-      setCurrentSection(1);
+      goToSection(1);
       setLoading(false);
       return;
     }
@@ -523,7 +539,23 @@ export default function InventoryForm() {
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-700">Progress</h3>
-              <span className="text-sm text-gray-500">Section {currentSection} of 2</span>
+              <div className="flex items-center gap-3">
+                {hasDraft && !isEditMode && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg font-medium">
+                      📝 Draft saved
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearDraft}
+                      className="text-xs text-red-500 hover:text-red-700 underline transition-colors"
+                    >
+                      Clear draft
+                    </button>
+                  </div>
+                )}
+                <span className="text-sm text-gray-500">Section {currentSection} of 2</span>
+              </div>
             </div>
             <div className="flex gap-3">
               {[
@@ -533,7 +565,7 @@ export default function InventoryForm() {
                 <button
                   key={section.num}
                   type="button"
-                  onClick={() => setCurrentSection(section.num)}
+                  onClick={() => goToSection(section.num)}
                   className={`flex-1 group relative overflow-hidden rounded-xl transition-all duration-300 ${
                     currentSection === section.num
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105'
@@ -845,8 +877,8 @@ export default function InventoryForm() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
-                    <input type="text" name="motherName" value={formData.motherName} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.motherName ? 'border-red-500 bg-red-50' : ''}`} />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+                    <input type="text" name="motherName" value={formData.motherName} onChange={handleChange} placeholder="e.g., Maria Santos" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.motherName ? 'border-red-500 bg-red-50' : ''}`} />
                     {fieldErrors.motherName && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
@@ -947,8 +979,8 @@ export default function InventoryForm() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
-                    <input type="text" name="fatherName" value={formData.fatherName} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.fatherName ? 'border-red-500 bg-red-50' : ''}`} />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+                    <input type="text" name="fatherName" value={formData.fatherName} onChange={handleChange} placeholder="e.g., Juan dela Cruz" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.fatherName ? 'border-red-500 bg-red-50' : ''}`} />
                     {fieldErrors.fatherName && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
@@ -1050,13 +1082,17 @@ export default function InventoryForm() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
-                    <input type="text" name="guardianName" value={formData.guardianName} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.guardianName ? 'border-red-500 bg-red-50' : ''}`} />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+                    <input type="text" name="guardianName" value={formData.guardianName} onChange={handleChange} placeholder="e.g., Pedro Reyes" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.guardianName ? 'border-red-500 bg-red-50' : ''}`} />
                     {fieldErrors.guardianName && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Age and Birthday</label>
-                    <input type="text" name="guardianAge" value={formData.guardianAge} onChange={handleChange} placeholder="e.g., 50 / Jan 1, 1975" className="w-full px-4 py-2 border rounded-lg" />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                    <input type="number" name="guardianAge" value={formData.guardianAge} onChange={handleChange} placeholder="e.g., 50" className="w-full px-4 py-2 border rounded-lg" min={1} max={120} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
+                    <input type="date" name="guardianBirthday" value={(formData as any).guardianBirthday || ''} onChange={handleChange} className="w-full px-4 py-2 border rounded-lg" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ethnicity</label>
@@ -1832,7 +1868,7 @@ export default function InventoryForm() {
               {currentSection > 1 && (
                 <button
                   type="button"
-                  onClick={() => setCurrentSection(currentSection - 1)}
+                  onClick={() => goToSection(currentSection - 1)}
                   className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1845,7 +1881,7 @@ export default function InventoryForm() {
               {currentSection < 2 ? (
                 <button
                   type="button"
-                  onClick={() => setCurrentSection(currentSection + 1)}
+                  onClick={() => goToSection(currentSection + 1)}
                   className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
                 >
                   Next Section
