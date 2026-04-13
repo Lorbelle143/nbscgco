@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
 
 const CAMPUS_IMG = "/nbsc-bg.jpg";
 const CAMPUS_FALLBACK = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcROE3tdSJOhol7z2c9L5Y6Sawh5ZmEU7GT8Dg&s";
@@ -34,6 +35,7 @@ const CONTACT = [
 ];
 
 export default function Home() {
+  const [mobileOpen, setMobileOpen] = useState(false);
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white font-sans antialiased selection:bg-blue-500/30">
       <style>{`
@@ -160,16 +162,38 @@ export default function Home() {
             ))}
           </div>
 
-          {/* CTA */}
-          <Link to="/login"
-            className="btn-p flex items-center gap-2 text-white text-[13px] font-semibold px-5 py-2 rounded-lg">
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2}
-                d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
-            </svg>
-            Sign In
-          </Link>
+          {/* CTA + Hamburger */}
+          <div className="flex items-center gap-3">
+            <Link to="/login"
+              className="btn-p flex items-center gap-2 text-white text-[13px] font-semibold px-5 py-2 rounded-lg">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.2}
+                  d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"/>
+              </svg>
+              Sign In
+            </Link>
+            <button onClick={() => setMobileOpen(!mobileOpen)}
+              className="md:hidden p-2 rounded-lg text-white/60 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Toggle menu">
+              {mobileOpen
+                ? <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+                : <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16"/></svg>
+              }
+            </button>
+          </div>
         </div>
+
+        {/* Mobile dropdown */}
+        {mobileOpen && (
+          <div className="md:hidden border-t border-white/[0.055] bg-slate-900/95 backdrop-blur-2xl px-6 py-4 flex flex-col gap-3">
+            {NAV_LINKS.map(l => (
+              <a key={l.label} href={l.href} onClick={() => setMobileOpen(false)}
+                className="text-sm font-medium text-white/70 hover:text-white transition-colors py-1">
+                {l.label}
+              </a>
+            ))}
+          </div>
+        )}
       </nav>
 
       {/* ══════════════════════════════════════════

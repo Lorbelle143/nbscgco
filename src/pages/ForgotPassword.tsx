@@ -4,6 +4,36 @@ import { supabase } from '../lib/supabase';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { notifyAdminPasswordResetRequest } from '../utils/emailNotify';
 
+const RATE_KEY = 'fp_attempts';
+const RATE_LOCKOUT_KEY = 'fp_lockout';
+const MAX_ATTEMPTS = 3;
+const LOCKOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+function isRateLimited(): boolean {
+  const lockout = localStorage.getItem(RATE_LOCKOUT_KEY);
+  if (lockout && Date.now() < parseInt(lockout)) return true;
+  if (lockout) { localStorage.removeItem(RATE_LOCKOUT_KEY); localStorage.removeItem(RATE_KEY); }
+  return false;
+}
+function getRemainingLockout(): number {
+  const lockout = localStorage.getItem(RATE_LOCKOUT_KEY);
+  return lockout ? Math.ceil((parseInt(lockout) - Date.now()) / 60000) : 0;
+}
+function recordAttempt(): boolean {
+  const n = parseInt(localStorage.getItem(RATE_KEY) || '0') + 1;
+  localStorage.setItem(RATE_KEY, String(n));
+  if (n >= MAX_ATTEMPTS) {
+    localStorage.setItem(RATE_LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
+    localStorage.removeItem(RATE_KEY);
+    return true; // locked out
+  }
+  return false;
+}
+function clearRateLimit() {
+  localStorage.removeItem(RATE_KEY);
+  localStorage.removeItem(RATE_LOCKOUT_KEY);
+}
+
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
   const [reason, setReason] = useState('');
@@ -14,6 +44,19 @@ export default function ForgotPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (isRateLimited()) {
+      setError(`Too many requests. Please try again in ${getRemainingLockout()} minute(s).`);
+      return;
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -24,8 +67,13 @@ export default function ForgotPassword() {
         .maybeSingle();
 
       if (profileError) throw profileError;
+
+      // Always record attempt regardless of whether email exists (prevent email enumeration)
+      const lockedOut = recordAttempt();
+
       if (!profile) {
-        setError('No account found with that email. Please check and try again.');
+        // Vague message to prevent email enumeration
+        setError('If that email is registered, a request will be submitted. Please contact the Guidance Office.');
         setLoading(false);
         return;
       }
@@ -50,7 +98,7 @@ export default function ForgotPassword() {
           student_id: profile.student_id,
           full_name: profile.full_name,
           email: profile.email,
-          reason: reason.trim() || 'No reason provided',
+          reason: reason.trim().slice(0, 500) || 'No reason provided', // limit length
           status: 'pending',
         });
 
@@ -69,7 +117,12 @@ export default function ForgotPassword() {
         }
       } catch (_) {}
 
+      clearRateLimit();
       setSuccess(true);
+
+      if (lockedOut) {
+        setError(`Too many requests. Please try again in ${getRemainingLockout()} minute(s).`);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to submit request. Please try again.');
     } finally {

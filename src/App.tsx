@@ -4,6 +4,7 @@ import { useAuthStore } from './store/authStore';
 import { ToastProvider } from './contexts/ToastContext';
 import LoadingSpinner from './components/LoadingSpinner';
 import SessionWarningModal from './components/SessionWarningModal';
+import OfflineBanner from './components/OfflineBanner';
 
 // Lazy-load all pages — reduces initial bundle size
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
@@ -43,6 +44,7 @@ function App() {
   return (
     <ToastProvider>
       <BrowserRouter>
+        <OfflineBanner />
         <SessionWarningModal />
         <Suspense fallback={<PageLoader />}>
           <Routes>

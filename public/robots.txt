@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+Allow: /forgot-password
+Allow: /privacy-policy
+
+Disallow: /dashboard
+Disallow: /admin
+Disallow: /admin-login
+Disallow: /edit-profile
+Disallow: /mental-health-assessment
+Disallow: /inventory-form
+
+Sitemap: https://nbscgco-enrollment.netlify.app/sitemap.xml

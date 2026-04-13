@@ -1,29 +1,73 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
+
+const LOCKOUT_KEY = 'admin_lockout';
+const ATTEMPTS_KEY = 'admin_attempts';
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes (was 30s — too short)
+
+function getLockout() {
+  const v = localStorage.getItem(LOCKOUT_KEY);
+  return v ? parseInt(v) : null;
+}
+function getAttempts() {
+  const v = localStorage.getItem(ATTEMPTS_KEY);
+  return v ? parseInt(v) : 0;
+}
+function setLockoutStorage(until: number) {
+  localStorage.setItem(LOCKOUT_KEY, String(until));
+  localStorage.setItem(ATTEMPTS_KEY, '0');
+}
+function incrementAttempts() {
+  const n = getAttempts() + 1;
+  localStorage.setItem(ATTEMPTS_KEY, String(n));
+  return n;
+}
+function clearAttempts() {
+  localStorage.removeItem(LOCKOUT_KEY);
+  localStorage.removeItem(ATTEMPTS_KEY);
+}
 
 export default function AdminLogin() {
   const [masterKey, setMasterKey] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [attempts, setAttempts] = useState(0);
-  const [lockoutUntil, setLockoutUntil] = useState<number | null>(null);
+  const [lockoutUntil, setLockoutUntil] = useState<number | null>(getLockout);
   const navigate = useNavigate();
   const { setUser, setIsAdmin } = useAuthStore();
+
+  // Countdown timer for lockout display
+  const [countdown, setCountdown] = useState(0);
+  useEffect(() => {
+    if (!lockoutUntil) return;
+    const tick = () => {
+      const left = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      if (left <= 0) { setLockoutUntil(null); clearAttempts(); setError(''); }
+      else setCountdown(left);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [lockoutUntil]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (lockoutUntil && Date.now() < lockoutUntil) {
-      const secsLeft = Math.ceil((lockoutUntil - Date.now()) / 1000);
+    const currentLockout = getLockout();
+    if (currentLockout && Date.now() < currentLockout) {
+      const secsLeft = Math.ceil((currentLockout - Date.now()) / 1000);
       setError(`Too many failed attempts. Try again in ${secsLeft}s.`);
       return;
     }
 
     setLoading(true);
+
+    // Artificial delay to slow brute force
+    await new Promise(r => setTimeout(r, 800));
 
     try {
       const { data: settings } = await supabase
@@ -35,39 +79,43 @@ export default function AdminLogin() {
       const validKey = settings?.master_key || import.meta.env.VITE_ADMIN_MASTER_KEY;
 
       if (masterKey !== validKey) {
-        const newAttempts = attempts + 1;
-        setAttempts(newAttempts);
-        if (newAttempts >= 5) {
-          setLockoutUntil(Date.now() + 30 * 1000);
-          setAttempts(0);
-          setError('Too many failed attempts. Please wait 30 seconds.');
+        const newAttempts = incrementAttempts();
+        if (newAttempts >= MAX_ATTEMPTS) {
+          const until = Date.now() + LOCKOUT_DURATION;
+          setLockoutStorage(until);
+          setLockoutUntil(until);
+          setError('Too many failed attempts. Please wait 5 minutes.');
         } else {
-          setError(`Invalid master key. ${5 - newAttempts} attempt(s) remaining.`);
+          // Don't reveal exact remaining attempts to attacker
+          setError('Invalid master key. Please try again.');
         }
         setLoading(false);
         return;
       }
     } catch {
       if (masterKey !== import.meta.env.VITE_ADMIN_MASTER_KEY) {
-        const newAttempts = attempts + 1;
-        setAttempts(newAttempts);
-        if (newAttempts >= 5) {
-          setLockoutUntil(Date.now() + 30 * 1000);
-          setAttempts(0);
-          setError('Too many failed attempts. Please wait 30 seconds.');
+        const newAttempts = incrementAttempts();
+        if (newAttempts >= MAX_ATTEMPTS) {
+          const until = Date.now() + LOCKOUT_DURATION;
+          setLockoutStorage(until);
+          setLockoutUntil(until);
+          setError('Too many failed attempts. Please wait 5 minutes.');
         } else {
-          setError(`Invalid master key. ${5 - newAttempts} attempt(s) remaining.`);
+          setError('Invalid master key. Please try again.');
         }
         setLoading(false);
         return;
       }
     }
 
+    clearAttempts();
     setUser({ id: 'admin', email: 'admin@system' } as any);
     setIsAdmin(true);
     navigate('/admin');
     setLoading(false);
   };
+
+  const isLocked = lockoutUntil !== null && Date.now() < lockoutUntil;
 
   return (
     <div
@@ -194,6 +242,7 @@ export default function AdminLogin() {
                     className="admin-input"
                     style={{ paddingRight: '42px' }}
                     placeholder="Enter master key"
+                    disabled={isLocked}
                     required
                   />
                   <button type="button" onClick={() => setShowKey(!showKey)}
@@ -212,8 +261,15 @@ export default function AdminLogin() {
                 </div>
               </div>
 
+              {isLocked && (
+                <div className="fade-up text-center p-4 bg-orange-500/10 border border-orange-500/30 rounded-xl">
+                  <p className="text-orange-300 text-sm font-semibold">🔒 Access locked</p>
+                  <p className="text-orange-400/70 text-xs mt-1">Try again in <span className="font-bold text-orange-300">{countdown}s</span></p>
+                </div>
+              )}
+
               <div className="fade-up-d2">
-                <button type="submit" disabled={loading} className="btn-admin">
+                <button type="submit" disabled={loading || isLocked} className="btn-admin">
                   {loading ? (
                     <span className="flex items-center justify-center gap-2">
                       <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">

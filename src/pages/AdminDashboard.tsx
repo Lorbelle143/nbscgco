@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase, supabaseAdmin } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { LoadingOverlay } from '../components/LoadingSpinner';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
+import { useDebounce } from '../hooks/useDebounce';
 import AdminAnalytics from '../components/AdminAnalytics';
 import MentalHealthAdmin from '../components/MentalHealthAdmin';
 import FollowUpTracker from '../components/FollowUpTracker';
@@ -32,12 +33,14 @@ export default function AdminDashboard() {
   const [adminProfile, setAdminProfile] = useState<any>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [auditSearchTerm, setAuditSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 300);
+  const debouncedAuditSearch = useDebounce(auditSearchTerm, 300);
   const [sortBy, setSortBy] = useState<'lastName' | 'date'>('lastName');
   const [studentCourseFilter, setStudentCourseFilter] = useState('');
   const [submissionCourseFilter, setSubmissionCourseFilter] = useState('');
   const [submissionYearFilter, setSubmissionYearFilter] = useState('');
   const [showNotSubmitted, setShowNotSubmitted] = useState(false);
-  const [auditSearchTerm, setAuditSearchTerm] = useState('');
   const [showAdminPasswordModal, setShowAdminPasswordModal] = useState(false);
   const [adminPasswordData, setAdminPasswordData] = useState({ current: '', newPass: '', confirm: '' });
   const [adminPasswordLoading, setAdminPasswordLoading] = useState(false);
@@ -845,7 +848,7 @@ export default function AdminDashboard() {
 
   // Filter students
   const filteredStudents = students.filter(s => {
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = debouncedSearch.toLowerCase();
     const matchesSearch = (
       (s.full_name || '').toLowerCase().includes(searchLower) ||
       (s.student_id || '').toLowerCase().includes(searchLower) ||
@@ -870,7 +873,7 @@ export default function AdminDashboard() {
   // Filter submissions
   const filteredSubmissions = submissions.filter(s => {
     const formData = s.form_data || {};
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = debouncedSearch.toLowerCase();
     const matchesSearch = (
       s.full_name.toLowerCase().includes(searchLower) ||
       s.student_id.toLowerCase().includes(searchLower) ||
@@ -896,8 +899,8 @@ export default function AdminDashboard() {
   const paginatedSubmissions = filteredAndSortedSubmissions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Reset to page 1 when search/sort changes
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, sortBy]);
-  useEffect(() => { setStudentsPage(1); }, [searchTerm, sortBy, studentCourseFilter, showNotSubmitted]);
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, sortBy]);
+  useEffect(() => { setStudentsPage(1); }, [debouncedSearch, sortBy, studentCourseFilter, showNotSubmitted]);
 
   const totalStudentPages = Math.ceil(sortedStudents.length / pageSize);
   const paginatedStudents = sortedStudents.slice((studentsPage - 1) * pageSize, studentsPage * pageSize);
