@@ -355,10 +355,6 @@ export default function InventoryForm() {
       fatherOccupation: "Father's Occupation",
       fatherIncome: "Father's Monthly Income",
       fatherContact: "Father's Contact Number",
-      // Guardian
-      guardianName: "Guardian's Name",
-      guardianContact: "Guardian's Contact Number",
-      guardianAddress: "Guardian's Address",
       // Siblings
       parentsStatus: "Parents' Status",
       numberOfSiblings: 'Number of Siblings',
@@ -436,15 +432,39 @@ export default function InventoryForm() {
 
       setError('💾 Saving to database...');
 
+      // Auto-fill guardian from parents if guardian fields are empty
+      const resolvedFormData = { ...formData };
+      if (!resolvedFormData.guardianName.trim()) {
+        // Use mother as default guardian, fallback to father
+        const parentName = resolvedFormData.motherName || resolvedFormData.fatherName;
+        const parentAge = resolvedFormData.motherAge || resolvedFormData.fatherAge;
+        const parentBirthday = resolvedFormData.motherBirthday || resolvedFormData.fatherBirthday;
+        const parentContact = resolvedFormData.motherContact || resolvedFormData.fatherContact;
+        const parentOccupation = resolvedFormData.motherOccupation || resolvedFormData.fatherOccupation;
+        const parentEducation = resolvedFormData.motherEducation || resolvedFormData.fatherEducation;
+        const parentIncome = resolvedFormData.motherIncome || resolvedFormData.fatherIncome;
+        const parentEthnicity = resolvedFormData.motherEthnicity || resolvedFormData.fatherEthnicity;
+        const parentReligion = resolvedFormData.motherReligion || resolvedFormData.fatherReligion;
+        resolvedFormData.guardianName = parentName;
+        resolvedFormData.guardianAge = parentAge;
+        (resolvedFormData as any).guardianBirthday = parentBirthday;
+        resolvedFormData.guardianContact = parentContact;
+        resolvedFormData.guardianOccupation = parentOccupation;
+        resolvedFormData.guardianEducation = parentEducation;
+        resolvedFormData.guardianIncome = parentIncome;
+        resolvedFormData.guardianEthnicity = parentEthnicity;
+        resolvedFormData.guardianReligion = parentReligion;
+      }
+
       // Base data without user_id (used for updates to avoid UUID issues)
       const baseData = {
-        student_id: formData.idNo,
-        full_name: `${formData.firstName} ${formData.middleInitial} ${formData.lastName}`,
-        course: formData.programYear,
-        year_level: formData.programYear.split(' ')[0] || '',
-        contact_number: formData.mobilePhone,
+        student_id: resolvedFormData.idNo,
+        full_name: `${resolvedFormData.firstName} ${resolvedFormData.middleInitial} ${resolvedFormData.lastName}`,
+        course: resolvedFormData.programYear,
+        year_level: resolvedFormData.programYear.split(' ')[0] || '',
+        contact_number: resolvedFormData.mobilePhone,
         photo_url: photoUrl || '',
-        form_data: { ...formData },
+        form_data: { ...resolvedFormData },
         google_form_response_id: '',
       };
 
@@ -1079,11 +1099,67 @@ export default function InventoryForm() {
                     </svg>
                     Guardian's Profile <span className="text-xs font-normal text-gray-500 ml-1">(if living with them)</span>
                   </h4>
+                  {/* Autofill shortcuts */}
+                  <div className="flex flex-wrap gap-3 mt-3">
+                    <span className="text-xs text-gray-500 font-medium self-center">Autofill from:</span>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition">
+                      <input
+                        type="checkbox"
+                        className="accent-blue-600"
+                        checked={false}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData(prev => ({
+                              ...prev,
+                              guardianName: prev.motherName,
+                              guardianAge: prev.motherAge,
+                              guardianBirthday: prev.motherBirthday,
+                              guardianEthnicity: prev.motherEthnicity,
+                              guardianReligion: prev.motherReligion,
+                              guardianEducation: prev.motherEducation,
+                              guardianOccupation: prev.motherOccupation,
+                              guardianCompany: prev.motherCompany,
+                              guardianIncome: prev.motherIncome,
+                              guardianContact: prev.motherContact,
+                            }));
+                            setIsDirty(true);
+                          }
+                        }}
+                      />
+                      👩 Same as Mother
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition">
+                      <input
+                        type="checkbox"
+                        className="accent-indigo-600"
+                        checked={false}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData(prev => ({
+                              ...prev,
+                              guardianName: prev.fatherName,
+                              guardianAge: prev.fatherAge,
+                              guardianBirthday: prev.fatherBirthday,
+                              guardianEthnicity: prev.fatherEthnicity,
+                              guardianReligion: prev.fatherReligion,
+                              guardianEducation: prev.fatherEducation,
+                              guardianOccupation: prev.fatherOccupation,
+                              guardianCompany: prev.fatherCompany,
+                              guardianIncome: prev.fatherIncome,
+                              guardianContact: prev.fatherContact,
+                            }));
+                            setIsDirty(true);
+                          }
+                        }}
+                      />
+                      👨 Same as Father
+                    </label>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
-                    <input type="text" name="guardianName" value={formData.guardianName} onChange={handleChange} placeholder="e.g., Pedro Reyes" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.guardianName ? 'border-red-500 bg-red-50' : ''}`} />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-gray-400 font-normal">(optional)</span></label>
+                    <input type="text" name="guardianName" value={formData.guardianName} onChange={handleChange} placeholder="Leave blank to use parent info" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.guardianName ? 'border-red-500 bg-red-50' : ''}`} />
                     {fieldErrors.guardianName && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
