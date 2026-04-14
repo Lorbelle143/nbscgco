@@ -554,6 +554,39 @@ export default function StudentDashboard() {
                       : score >= 11
                       ? { label: 'Need Support', color: 'yellow', icon: '⚠️' }
                       : { label: 'Doing Well', color: 'green', icon: '✅' };
+                    const SCORE_LABELS = ['Never', 'Rarely', 'Sometimes', 'Often', 'Always'];
+                    const handlePrintAssessment = () => {
+                      const win = window.open('', '_blank');
+                      if (!win) return;
+                      win.document.write(`
+                        <html><head><title>BSRS-5 Assessment — ${profile?.full_name}</title>
+                        <style>body{font-family:Arial,sans-serif;padding:32px;max-width:600px;margin:0 auto}
+                        h2{color:#1e3a5f}table{width:100%;border-collapse:collapse;margin:16px 0}
+                        th,td{border:1px solid #ddd;padding:8px 12px;text-align:left}th{background:#f0f4ff}
+                        .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-weight:bold;font-size:13px}
+                        .red{background:#fee2e2;color:#b91c1c}.yellow{background:#fef9c3;color:#92400e}.green{background:#dcfce7;color:#166534}
+                        @media print{button{display:none}}</style></head><body>
+                        <h2>NBSC Guidance & Counseling Office</h2>
+                        <h3>BSRS-5 Mental Health Assessment Result</h3>
+                        <p><strong>Student:</strong> ${profile?.full_name} &nbsp;|&nbsp; <strong>ID:</strong> ${profile?.student_id}</p>
+                        <p><strong>Date:</strong> ${new Date(a.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                        <p><strong>Total Score:</strong> ${score}/20 &nbsp;
+                          <span class="badge ${risk.color}">${risk.icon} ${risk.label}</span></p>
+                        <table>
+                          <tr><th>Question</th><th>Response</th></tr>
+                          <tr><td>Feeling alone</td><td>${a.feeling_alone} — ${SCORE_LABELS[a.feeling_alone]}</td></tr>
+                          <tr><td>Feeling blue</td><td>${a.feeling_blue} — ${SCORE_LABELS[a.feeling_blue]}</td></tr>
+                          <tr><td>Feeling easily annoyed</td><td>${a.feeling_easily_annoyed} — ${SCORE_LABELS[a.feeling_easily_annoyed]}</td></tr>
+                          <tr><td>Feeling tense or anxious</td><td>${a.feeling_tense_anxious} — ${SCORE_LABELS[a.feeling_tense_anxious]}</td></tr>
+                          <tr><td>Feeling inferior</td><td>${a.feeling_inferior} — ${SCORE_LABELS[a.feeling_inferior]}</td></tr>
+                          <tr><td style="color:${a.having_suicidal_thoughts > 0 ? '#b91c1c' : 'inherit'}"><strong>Having suicidal thoughts</strong></td>
+                              <td style="color:${a.having_suicidal_thoughts > 0 ? '#b91c1c' : 'inherit'}">${a.having_suicidal_thoughts} — ${SCORE_LABELS[a.having_suicidal_thoughts]}${a.having_suicidal_thoughts > 0 ? ' ⚠️' : ''}</td></tr>
+                        </table>
+                        <p style="font-size:12px;color:#666;margin-top:24px">Scoring: 0–10 Doing Well · 11–13 Need Support · 14–20 Immediate Support</p>
+                        <button onclick="window.print()" style="margin-top:16px;padding:8px 20px;background:#1d4ed8;color:white;border:none;border-radius:8px;cursor:pointer">🖨️ Print</button>
+                        </body></html>`);
+                      win.document.close();
+                    };
                     return (
                       <div key={a.id} className="px-6 py-4">
                         <div className="flex items-center justify-between mb-2">
@@ -561,9 +594,16 @@ export default function StudentDashboard() {
                             <p className="font-semibold text-gray-800">Score: {score}/20</p>
                             <p className="text-xs text-gray-500">{new Date(a.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                           </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-bold bg-${risk.color}-100 text-${risk.color}-700`}>
-                            {risk.icon} {risk.label}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold bg-${risk.color}-100 text-${risk.color}-700`}>
+                              {risk.icon} {risk.label}
+                            </span>
+                            <button onClick={handlePrintAssessment}
+                              className="px-3 py-1.5 bg-blue-50 text-blue-600 text-xs rounded-lg hover:bg-blue-100 transition font-medium border border-blue-200"
+                              title="Print / Download result">
+                              🖨️ Print
+                            </button>
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-1.5 text-xs">
                           {[

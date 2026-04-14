@@ -85,7 +85,38 @@ export default function PrivacyPolicy() {
           </section>
 
           <section>
-            <h2 className="text-lg font-bold text-white mb-3">8. Contact Us</h2>
+            <h2 className="text-lg font-bold text-white mb-3">8. Data Subject Rights (Republic Act No. 10173)</h2>
+            <p className="mb-3">Under the Data Privacy Act of 2012 (RA 10173), you have the following rights:</p>
+            <ul className="list-disc pl-5 space-y-1.5 text-white/60">
+              <li><span className="text-white/80 font-medium">Right to be Informed</span> — You have the right to know how your personal data is collected and processed.</li>
+              <li><span className="text-white/80 font-medium">Right to Access</span> — You may request a copy of your personal data held by the Guidance Office.</li>
+              <li><span className="text-white/80 font-medium">Right to Rectification</span> — You may request correction of inaccurate or incomplete personal data.</li>
+              <li><span className="text-white/80 font-medium">Right to Erasure</span> — You may request deletion of your personal data, subject to legal and institutional retention requirements.</li>
+              <li><span className="text-white/80 font-medium">Right to Object</span> — You may object to the processing of your personal data in certain circumstances.</li>
+              <li><span className="text-white/80 font-medium">Right to Data Portability</span> — You may request a copy of your data in a structured, commonly used format.</li>
+              <li><span className="text-white/80 font-medium">Right to Lodge a Complaint</span> — You may file a complaint with the National Privacy Commission (NPC) at <span className="text-blue-400">privacy.gov.ph</span>.</li>
+            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-bold text-white mb-3">9. Data Retention</h2>
+            <p>
+              Student records are retained for the duration of enrollment and for a period required by CHED, NBSC institutional policies, and applicable laws. Records may be retained longer if required for legal, audit, or accreditation purposes. Upon request, personal data may be anonymized or deleted in accordance with RA 10173.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-bold text-white mb-3">10. Data Protection Officer</h2>
+            <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-5 text-white/60">
+              <p>For data privacy concerns, you may contact the NBSC Data Protection Officer:</p>
+              <p className="mt-2">📧 gco@nbsc.edu.ph</p>
+              <p>📍 Kihare, Manolo Fortich, Bukidnon, Philippines</p>
+              <p className="mt-2 text-white/40 text-xs">You may also file a complaint with the National Privacy Commission: <span className="text-blue-400">privacy.gov.ph</span></p>
+            </div>
+          </section>
+
+          <section>
+            <h2 className="text-lg font-bold text-white mb-3">11. Contact Us</h2>
             <div className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-5 space-y-2 text-white/60">
               <p>📍 Kihare, Manolo Fortich, Bukidnon, Philippines</p>
               <p>📧 gco@nbsc.edu.ph</p>

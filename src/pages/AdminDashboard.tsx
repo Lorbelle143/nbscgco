@@ -784,66 +784,67 @@ export default function AdminDashboard() {
   };
 
   const exportToCSV = () => {
+    // Properly escape CSV fields — wrap in quotes, escape internal quotes
+    const escapeCSV = (val: any) => {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
     const headers = ['Student ID', 'Last Name', 'First Name', 'Course', 'Year Level', 'Contact Number', 'Submitted Date & Time'];
-    
-    // Sort submissions by last name A-Z before exporting
+
     const sortedForExport = [...filteredAndSortedSubmissions].sort((a, b) => {
       const lastNameA = (a.form_data?.lastName || a.full_name.split(' ')[0] || '').toLowerCase();
       const lastNameB = (b.form_data?.lastName || b.full_name.split(' ')[0] || '').toLowerCase();
       return lastNameA.localeCompare(lastNameB);
     });
-    
+
     const rows = sortedForExport.map(s => {
       const formData = s.form_data || {};
-      const submittedDate = new Date(s.created_at);
-      
-      // Format: MM/DD/YYYY HH:MM:SS AM/PM
-      const dateTimeString = submittedDate.toLocaleString('en-US', {
-        month: '2-digit',
-        day: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
+      const dateTimeString = new Date(s.created_at).toLocaleString('en-US', {
+        month: '2-digit', day: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
       });
-      
       return [
-        s.student_id || '',
-        formData.lastName || '',
-        formData.firstName || '',
-        s.course || '',
-        s.year_level || '',
-        s.contact_number || '',
-        dateTimeString
-      ];
+        s.student_id || '', formData.lastName || '', formData.firstName || '',
+        s.course || '', s.year_level || '', s.contact_number || '', dateTimeString
+      ].map(escapeCSV);
     });
 
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csv = '\uFEFF' + [headers.map(escapeCSV), ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `student_inventory_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const exportSelectedCSV = () => {
     const selected = filteredAndSortedSubmissions.filter(s => selectedSubmissionIds.has(s.id));
     if (selected.length === 0) return;
+    const escapeCSV = (val: any) => {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
+      return str;
+    };
     const headers = ['Student ID', 'Last Name', 'First Name', 'Course', 'Year Level', 'Contact Number', 'Submitted Date & Time'];
     const rows = selected.map(s => {
       const f = s.form_data || {};
       const dt = new Date(s.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-      return [s.student_id||'', f.lastName||'', f.firstName||'', s.course||'', s.year_level||'', s.contact_number||'', dt];
+      return [s.student_id||'', f.lastName||'', f.firstName||'', s.course||'', s.year_level||'', s.contact_number||'', dt].map(escapeCSV);
     });
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csv = '\uFEFF' + [headers.map(escapeCSV), ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `selected_students_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   // Filter students
