@@ -558,33 +558,174 @@ export default function StudentDashboard() {
                     const handlePrintAssessment = () => {
                       const win = window.open('', '_blank');
                       if (!win) return;
-                      win.document.write(`
-                        <html><head><title>BSRS-5 Assessment — ${profile?.full_name}</title>
-                        <style>body{font-family:Arial,sans-serif;padding:32px;max-width:600px;margin:0 auto}
-                        h2{color:#1e3a5f}table{width:100%;border-collapse:collapse;margin:16px 0}
-                        th,td{border:1px solid #ddd;padding:8px 12px;text-align:left}th{background:#f0f4ff}
-                        .badge{display:inline-block;padding:4px 12px;border-radius:20px;font-weight:bold;font-size:13px}
-                        .red{background:#fee2e2;color:#b91c1c}.yellow{background:#fef9c3;color:#92400e}.green{background:#dcfce7;color:#166534}
-                        @media print{button{display:none}}</style></head><body>
-                        <h2>NBSC Guidance & Counseling Office</h2>
-                        <h3>BSRS-5 Mental Health Assessment Result</h3>
-                        <p><strong>Student:</strong> ${profile?.full_name} &nbsp;|&nbsp; <strong>ID:</strong> ${profile?.student_id}</p>
-                        <p><strong>Date:</strong> ${new Date(a.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                        <p><strong>Total Score:</strong> ${score}/20 &nbsp;
-                          <span class="badge ${risk.color}">${risk.icon} ${risk.label}</span></p>
-                        <table>
-                          <tr><th>Question</th><th>Response</th></tr>
-                          <tr><td>Feeling alone</td><td>${a.feeling_alone} — ${SCORE_LABELS[a.feeling_alone]}</td></tr>
-                          <tr><td>Feeling blue</td><td>${a.feeling_blue} — ${SCORE_LABELS[a.feeling_blue]}</td></tr>
-                          <tr><td>Feeling easily annoyed</td><td>${a.feeling_easily_annoyed} — ${SCORE_LABELS[a.feeling_easily_annoyed]}</td></tr>
-                          <tr><td>Feeling tense or anxious</td><td>${a.feeling_tense_anxious} — ${SCORE_LABELS[a.feeling_tense_anxious]}</td></tr>
-                          <tr><td>Feeling inferior</td><td>${a.feeling_inferior} — ${SCORE_LABELS[a.feeling_inferior]}</td></tr>
-                          <tr><td style="color:${a.having_suicidal_thoughts > 0 ? '#b91c1c' : 'inherit'}"><strong>Having suicidal thoughts</strong></td>
-                              <td style="color:${a.having_suicidal_thoughts > 0 ? '#b91c1c' : 'inherit'}">${a.having_suicidal_thoughts} — ${SCORE_LABELS[a.having_suicidal_thoughts]}${a.having_suicidal_thoughts > 0 ? ' ⚠️' : ''}</td></tr>
-                        </table>
-                        <p style="font-size:12px;color:#666;margin-top:24px">Scoring: 0–10 Doing Well · 11–13 Need Support · 14–20 Immediate Support</p>
-                        <button onclick="window.print()" style="margin-top:16px;padding:8px 20px;background:#1d4ed8;color:white;border:none;border-radius:8px;cursor:pointer">🖨️ Print</button>
-                        </body></html>`);
+                      const riskBg = score >= 14 ? '#fef2f2' : score >= 11 ? '#fff7ed' : '#f0fdf4';
+                      const riskBorder = score >= 14 ? '#fca5a5' : score >= 11 ? '#fdba74' : '#86efac';
+                      const riskText = score >= 14 ? '#991b1b' : score >= 11 ? '#9a3412' : '#166534';
+                      const scoreBar = Math.round((score / 20) * 100);
+                      const scoreColor = score >= 14 ? '#dc2626' : score >= 11 ? '#ea580c' : '#16a34a';
+                      win.document.write(`<!DOCTYPE html><html lang="en"><head>
+                        <meta charset="UTF-8"/>
+                        <title>BSRS-5 Result — ${profile?.full_name}</title>
+                        <style>
+                          *{box-sizing:border-box;margin:0;padding:0}
+                          body{font-family:'Segoe UI',Arial,sans-serif;background:#f8fafc;color:#1e293b;padding:0}
+                          .page{max-width:680px;margin:0 auto;background:#fff;min-height:100vh}
+                          /* Header */
+                          .header{background:linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 50%,#4338ca 100%);padding:28px 36px;color:#fff}
+                          .header-top{display:flex;align-items:center;gap:16px;margin-bottom:16px}
+                          .logo-box{width:52px;height:52px;background:rgba(255,255,255,0.15);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:900;color:#fff;border:2px solid rgba(255,255,255,0.3)}
+                          .school-name{font-size:13px;font-weight:700;letter-spacing:0.05em;opacity:0.9}
+                          .office-name{font-size:11px;opacity:0.7;margin-top:2px}
+                          .doc-title{font-size:20px;font-weight:800;letter-spacing:-0.01em}
+                          .doc-subtitle{font-size:12px;opacity:0.75;margin-top:4px}
+                          /* Body */
+                          .body{padding:28px 36px}
+                          /* Student info card */
+                          .info-card{background:#f1f5f9;border-radius:12px;padding:16px 20px;margin-bottom:20px;display:flex;gap:24px;flex-wrap:wrap}
+                          .info-item{flex:1;min-width:140px}
+                          .info-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:3px}
+                          .info-value{font-size:14px;font-weight:600;color:#0f172a}
+                          /* Score section */
+                          .score-section{background:${riskBg};border:2px solid ${riskBorder};border-radius:14px;padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:20px}
+                          .score-circle{width:72px;height:72px;border-radius:50%;background:#fff;border:4px solid ${scoreColor};display:flex;flex-direction:column;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.08)}
+                          .score-num{font-size:26px;font-weight:900;color:${scoreColor};line-height:1}
+                          .score-denom{font-size:11px;color:#94a3b8;font-weight:600}
+                          .score-info{flex:1}
+                          .risk-badge{display:inline-block;padding:5px 14px;border-radius:20px;font-weight:700;font-size:13px;background:${riskBg};color:${riskText};border:1.5px solid ${riskBorder};margin-bottom:8px}
+                          .score-bar-wrap{background:#e2e8f0;border-radius:99px;height:8px;overflow:hidden;margin-top:8px}
+                          .score-bar{height:8px;border-radius:99px;background:${scoreColor};width:${scoreBar}%;transition:width 0.5s}
+                          .score-desc{font-size:12px;color:#64748b;margin-top:6px}
+                          /* Questions table */
+                          .section-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:10px;padding-bottom:6px;border-bottom:2px solid #e2e8f0}
+                          table{width:100%;border-collapse:collapse;margin-bottom:20px}
+                          thead tr{background:#f1f5f9}
+                          th{padding:10px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:#475569}
+                          td{padding:10px 14px;font-size:13px;border-bottom:1px solid #f1f5f9;color:#334155}
+                          tr:last-child td{border-bottom:none}
+                          .q-num{color:#94a3b8;font-weight:600;width:28px}
+                          .score-pill{display:inline-block;padding:2px 10px;border-radius:99px;font-size:11px;font-weight:700}
+                          .pill-0{background:#dcfce7;color:#166534}
+                          .pill-1{background:#d1fae5;color:#065f46}
+                          .pill-2{background:#fef9c3;color:#854d0e}
+                          .pill-3{background:#ffedd5;color:#9a3412}
+                          .pill-4{background:#fee2e2;color:#991b1b}
+                          .suicidal-row td{background:#fff1f2;color:#9f1239}
+                          .suicidal-row td:first-child{font-weight:700}
+                          /* Scoring guide */
+                          .guide{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px 18px;margin-bottom:20px}
+                          .guide-title{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#64748b;margin-bottom:8px}
+                          .guide-items{display:flex;gap:12px;flex-wrap:wrap}
+                          .guide-item{display:flex;align-items:center;gap:6px;font-size:12px;color:#475569}
+                          .guide-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+                          /* Footer */
+                          .footer{border-top:1px solid #e2e8f0;padding:16px 36px;display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#94a3b8}
+                          /* Print button */
+                          .print-btn{display:block;width:100%;padding:12px;background:linear-gradient(135deg,#1d4ed8,#4338ca);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:20px;letter-spacing:0.02em}
+                          .print-btn:hover{opacity:0.9}
+                          @media print{.print-btn{display:none}.page{box-shadow:none}body{background:#fff}}
+                        </style>
+                      </head><body>
+                      <div class="page">
+                        <div class="header">
+                          <div class="header-top">
+                            <div class="logo-box">GCO</div>
+                            <div>
+                              <div class="school-name">NORTHERN BUKIDNON STATE COLLEGE</div>
+                              <div class="office-name">Kihare, Manolo Fortich, Bukidnon · gco@nbsc.edu.ph</div>
+                            </div>
+                          </div>
+                          <div class="doc-title">Mental Health Assessment Result</div>
+                          <div class="doc-subtitle">Brief Symptom Rating Scale (BSRS-5) · Official Record</div>
+                        </div>
+
+                        <div class="body">
+                          <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+
+                          <div class="info-card">
+                            <div class="info-item">
+                              <div class="info-label">Student Name</div>
+                              <div class="info-value">${profile?.full_name || '—'}</div>
+                            </div>
+                            <div class="info-item">
+                              <div class="info-label">Student ID</div>
+                              <div class="info-value">${profile?.student_id || '—'}</div>
+                            </div>
+                            <div class="info-item">
+                              <div class="info-label">Date Assessed</div>
+                              <div class="info-value">${new Date(a.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                            </div>
+                          </div>
+
+                          <div class="score-section">
+                            <div class="score-circle">
+                              <div class="score-num">${score}</div>
+                              <div class="score-denom">/ 20</div>
+                            </div>
+                            <div class="score-info">
+                              <div class="risk-badge">${risk.icon} ${risk.label}</div>
+                              <div class="score-bar-wrap"><div class="score-bar"></div></div>
+                              <div class="score-desc">
+                                ${score >= 14 ? 'Score indicates need for <strong>immediate counseling support</strong>.' :
+                                  score >= 11 ? 'Score indicates <strong>counseling support is recommended</strong>.' :
+                                  'Score is within the <strong>normal range</strong>. Keep maintaining your wellness.'}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div class="section-title">BSRS-5 Question Responses</div>
+                          <table>
+                            <thead><tr>
+                              <th class="q-num">#</th>
+                              <th>Question</th>
+                              <th>Score</th>
+                              <th>Response</th>
+                            </tr></thead>
+                            <tbody>
+                              ${[
+                                ['Feeling alone', a.feeling_alone],
+                                ['Feeling blue', a.feeling_blue],
+                                ['Feeling easily annoyed or irritated', a.feeling_easily_annoyed],
+                                ['Feeling tense or keyed up', a.feeling_tense_anxious],
+                                ['Feeling inferior to others', a.feeling_inferior],
+                              ].map(([q, v], i) => `
+                                <tr>
+                                  <td class="q-num">${i + 1}</td>
+                                  <td>${q}</td>
+                                  <td><span class="score-pill pill-${v}">${v}</span></td>
+                                  <td>${SCORE_LABELS[v as number]}</td>
+                                </tr>`).join('')}
+                              <tr class="suicidal-row">
+                                <td class="q-num">⚠</td>
+                                <td>Having suicidal thoughts <em style="font-size:11px;font-weight:400">(not included in score)</em></td>
+                                <td><span class="score-pill ${a.having_suicidal_thoughts > 0 ? 'pill-4' : 'pill-0'}">${a.having_suicidal_thoughts}</span></td>
+                                <td>${SCORE_LABELS[a.having_suicidal_thoughts]}${a.having_suicidal_thoughts > 0 ? ' ⚠️' : ''}</td>
+                              </tr>
+                            </tbody>
+                          </table>
+
+                          <div class="guide">
+                            <div class="guide-title">Scoring Guide</div>
+                            <div class="guide-items">
+                              <div class="guide-item"><div class="guide-dot" style="background:#16a34a"></div> 0–10: Doing Well</div>
+                              <div class="guide-item"><div class="guide-dot" style="background:#ea580c"></div> 11–13: Need Support</div>
+                              <div class="guide-item"><div class="guide-dot" style="background:#dc2626"></div> 14–20: Immediate Support</div>
+                              <div class="guide-item"><div class="guide-dot" style="background:#9f1239"></div> Any suicidal thoughts: Immediate Support</div>
+                            </div>
+                          </div>
+
+                          ${score >= 11 || a.having_suicidal_thoughts > 0 ? `
+                          <div style="background:#fff1f2;border:2px solid #fca5a5;border-radius:12px;padding:16px 20px;margin-bottom:20px">
+                            <div style="font-weight:700;color:#991b1b;margin-bottom:6px">⚠️ Action Required</div>
+                            <div style="font-size:13px;color:#7f1d1d">Please visit the <strong>Guidance and Counseling Office — SC Room 108</strong> at your earliest convenience. Your counselor has been notified.</div>
+                          </div>` : ''}
+                        </div>
+
+                        <div class="footer">
+                          <span>NBSC Guidance & Counseling Office · gco@nbsc.edu.ph · 09360363915</span>
+                          <span>Printed: ${new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
+                        </div>
+                      </div>
+                      </body></html>`);
                       win.document.close();
                     };
                     return (
