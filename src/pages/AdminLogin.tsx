@@ -70,13 +70,27 @@ export default function AdminLogin() {
     await new Promise(r => setTimeout(r, 800));
 
     try {
-      const { data: settings } = await supabase
-        .from('admin_settings')
-        .select('master_key')
-        .eq('id', 1)
-        .maybeSingle();
+      // Use env key first — fallback to Supabase only if env key is not set
+      const envKey = import.meta.env.VITE_ADMIN_MASTER_KEY;
 
-      const validKey = settings?.master_key || import.meta.env.VITE_ADMIN_MASTER_KEY;
+      let validKey = envKey;
+
+      // Only try Supabase if env key is missing
+      if (!envKey) {
+        try {
+          const { data: settings } = await supabase
+            .from('admin_settings')
+            .select('master_key')
+            .eq('id', 1)
+            .maybeSingle();
+          validKey = settings?.master_key || '';
+        } catch {
+          // Supabase unreachable — can't validate
+          setError('Cannot connect to server. Please check your connection.');
+          setLoading(false);
+          return;
+        }
+      }
 
       if (masterKey !== validKey) {
         const newAttempts = incrementAttempts();
@@ -86,26 +100,15 @@ export default function AdminLogin() {
           setLockoutUntil(until);
           setError('Too many failed attempts. Please wait 5 minutes.');
         } else {
-          // Don't reveal exact remaining attempts to attacker
           setError('Invalid master key. Please try again.');
         }
         setLoading(false);
         return;
       }
     } catch {
-      if (masterKey !== import.meta.env.VITE_ADMIN_MASTER_KEY) {
-        const newAttempts = incrementAttempts();
-        if (newAttempts >= MAX_ATTEMPTS) {
-          const until = Date.now() + LOCKOUT_DURATION;
-          setLockoutStorage(until);
-          setLockoutUntil(until);
-          setError('Too many failed attempts. Please wait 5 minutes.');
-        } else {
-          setError('Invalid master key. Please try again.');
-        }
-        setLoading(false);
-        return;
-      }
+      setError('An unexpected error occurred. Please try again.');
+      setLoading(false);
+      return;
     }
 
     clearAttempts();

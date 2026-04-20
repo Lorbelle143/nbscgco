@@ -305,17 +305,20 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      // Use supabaseAdmin (service role) to bypass RLS for profiles query
       const client = supabaseAdmin || supabase;
 
       const [profilesResult, submissionsResult] = await Promise.all([
         client
           .from('profiles')
-          .select('*')
-          .eq('is_admin', false),
+          .select('id, email, full_name, student_id, is_admin, created_at, last_login, profile_picture, profile_picture_url')
+          .eq('is_admin', false)
+          .order('full_name', { ascending: true }),
         client
           .from('inventory_submissions')
-          .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, form_data, created_at, updated_at, reviewed_at')
+          // Exclude form_data on initial load — too heavy, fetch on demand when viewing
+          .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, created_at, updated_at, reviewed_at')
+          .order('created_at', { ascending: false })
+          .limit(500)
       ]);
 
       if (profilesResult.error) throw new Error('Profiles: ' + profilesResult.error.message);
@@ -395,9 +398,20 @@ export default function AdminDashboard() {
     }
   };
 
-  // Fetch full submission (with photo_url) only when needed for view/print
+  // Fetch full submission with form_data only when needed for view/print/PDF
   const fetchFullSubmission = async (submission: any) => {
-    return submission; // photo_url already included in list query
+    if (submission.form_data) return submission; // already loaded
+    try {
+      const client = supabaseAdmin || supabase;
+      const { data } = await client
+        .from('inventory_submissions')
+        .select('form_data, photo_url')
+        .eq('id', submission.id)
+        .single();
+      return { ...submission, form_data: data?.form_data || {}, photo_url: data?.photo_url || submission.photo_url };
+    } catch {
+      return submission;
+    }
   };
 
   const handleView = async (submission: any) => {
