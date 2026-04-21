@@ -341,20 +341,24 @@ export default function InventoryForm() {
       personalEmail: 'Personal Email',
       institutionalEmail: 'Institutional Email',
       permanentAddress: 'Permanent Address',
-      // Mother
-      motherName: "Mother's Name",
-      motherAge: "Mother's Age",
-      motherEducation: "Mother's Educational Attainment",
-      motherOccupation: "Mother's Occupation",
-      motherIncome: "Mother's Monthly Income",
-      motherContact: "Mother's Contact Number",
-      // Father
-      fatherName: "Father's Name",
-      fatherAge: "Father's Age",
-      fatherEducation: "Father's Educational Attainment",
-      fatherOccupation: "Father's Occupation",
-      fatherIncome: "Father's Monthly Income",
-      fatherContact: "Father's Contact Number",
+      // Mother — skip if marked N/A
+      ...(formData.motherName !== 'N/A' && {
+        motherName: "Mother's Name",
+        motherAge: "Mother's Age",
+        motherEducation: "Mother's Educational Attainment",
+        motherOccupation: "Mother's Occupation",
+        motherIncome: "Mother's Monthly Income",
+        motherContact: "Mother's Contact Number",
+      }),
+      // Father — skip if marked N/A
+      ...(formData.fatherName !== 'N/A' && {
+        fatherName: "Father's Name",
+        fatherAge: "Father's Age",
+        fatherEducation: "Father's Educational Attainment",
+        fatherOccupation: "Father's Occupation",
+        fatherIncome: "Father's Monthly Income",
+        fatherContact: "Father's Contact Number",
+      }),
       // Siblings
       parentsStatus: "Parents' Status",
       numberOfSiblings: 'Number of Siblings',
@@ -894,16 +898,43 @@ export default function InventoryForm() {
                     </svg>
                     Mother's Profile
                   </h4>
+                  <label className="flex items-center gap-2 mt-3 cursor-pointer w-fit">
+                    <input
+                      type="checkbox"
+                      className="accent-pink-600 w-4 h-4"
+                      checked={formData.motherName === 'N/A'}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setFormData(prev => ({
+                            ...prev,
+                            motherName: 'N/A', motherAge: 'N/A', motherBirthday: '',
+                            motherEthnicity: 'N/A', motherReligion: 'N/A', motherEducation: 'N/A',
+                            motherOccupation: 'N/A', motherCompany: 'N/A', motherIncome: 'N/A', motherContact: 'N/A',
+                          }));
+                          setIsDirty(true);
+                        } else {
+                          setFormData(prev => ({
+                            ...prev,
+                            motherName: '', motherAge: '', motherBirthday: '',
+                            motherEthnicity: '', motherReligion: '', motherEducation: '',
+                            motherOccupation: '', motherCompany: '', motherIncome: '', motherContact: '',
+                          }));
+                          setIsDirty(true);
+                        }
+                      }}
+                    />
+                    <span className="text-sm text-gray-600 font-medium">Mother is deceased / not applicable</span>
+                  </label>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
-                    <input type="text" name="motherName" value={formData.motherName} onChange={handleChange} placeholder="e.g., Maria Santos" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.motherName ? 'border-red-500 bg-red-50' : ''}`} />
+                    <input type="text" name="motherName" value={formData.motherName} onChange={handleChange} placeholder="e.g., Maria Santos" disabled={formData.motherName === 'N/A'} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.motherName ? 'border-red-500 bg-red-50' : ''} ${formData.motherName === 'N/A' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} />
                     {fieldErrors.motherName && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Age <span className="text-red-500">*</span></label>
-                    <input type="number" name="motherAge" value={formData.motherAge} onChange={handleChange} placeholder="e.g., 45" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.motherAge ? 'border-red-500 bg-red-50' : ''}`} />
+                    <input type={formData.motherName === 'N/A' ? 'text' : 'number'} name="motherAge" value={formData.motherAge} onChange={handleChange} placeholder="e.g., 45" disabled={formData.motherName === 'N/A'} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.motherAge ? 'border-red-500 bg-red-50' : ''} ${formData.motherName === 'N/A' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} />
                     {fieldErrors.motherAge && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
@@ -996,21 +1027,48 @@ export default function InventoryForm() {
                     </svg>
                     Father's Profile
                   </h4>
+                  <label className="flex items-center gap-2 mt-3 cursor-pointer w-fit">
+                    <input
+                      type="checkbox"
+                      className="accent-blue-600 w-4 h-4"
+                      checked={formData.fatherName === 'N/A'}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setFormData(prev => ({
+                            ...prev,
+                            fatherName: 'N/A', fatherAge: 'N/A', fatherBirthday: '',
+                            fatherEthnicity: 'N/A', fatherReligion: 'N/A', fatherEducation: 'N/A',
+                            fatherOccupation: 'N/A', fatherCompany: 'N/A', fatherIncome: 'N/A', fatherContact: 'N/A',
+                          }));
+                          setIsDirty(true);
+                        } else {
+                          setFormData(prev => ({
+                            ...prev,
+                            fatherName: '', fatherAge: '', fatherBirthday: '',
+                            fatherEthnicity: '', fatherReligion: '', fatherEducation: '',
+                            fatherOccupation: '', fatherCompany: '', fatherIncome: '', fatherContact: '',
+                          }));
+                          setIsDirty(true);
+                        }
+                      }}
+                    />
+                    <span className="text-sm text-gray-600 font-medium">Father is deceased / not applicable</span>
+                  </label>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
-                    <input type="text" name="fatherName" value={formData.fatherName} onChange={handleChange} placeholder="e.g., Juan dela Cruz" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.fatherName ? 'border-red-500 bg-red-50' : ''}`} />
+                    <input type="text" name="fatherName" value={formData.fatherName} onChange={handleChange} placeholder="e.g., Juan dela Cruz" disabled={formData.fatherName === 'N/A'} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.fatherName ? 'border-red-500 bg-red-50' : ''} ${formData.fatherName === 'N/A' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} />
                     {fieldErrors.fatherName && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Age <span className="text-red-500">*</span></label>
-                    <input type="number" name="fatherAge" value={formData.fatherAge} onChange={handleChange} placeholder="e.g., 48" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.fatherAge ? 'border-red-500 bg-red-50' : ''}`} />
+                    <input type={formData.fatherName === 'N/A' ? 'text' : 'number'} name="fatherAge" value={formData.fatherAge} onChange={handleChange} placeholder="e.g., 48" disabled={formData.fatherName === 'N/A'} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.fatherAge ? 'border-red-500 bg-red-50' : ''} ${formData.fatherName === 'N/A' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} />
                     {fieldErrors.fatherAge && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
-                    <input type="date" name="fatherBirthday" value={formData.fatherBirthday} onChange={handleChange} className="w-full px-4 py-2 border rounded-lg" />
+                    <input type="date" name="fatherBirthday" value={formData.fatherBirthday} onChange={handleChange} disabled={formData.fatherName === 'N/A'} className={`w-full px-4 py-2 border rounded-lg ${formData.fatherName === 'N/A' ? 'bg-gray-100 cursor-not-allowed' : ''}`} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ethnicity</label>
