@@ -173,7 +173,7 @@ export default function Register() {
               <img src="/logo.png" alt="GCO" className="w-9 h-9 object-contain"/>
             </div>
             <div>
-              <p className="text-xs font-semibold text-white/70">GCO Management System</p>
+              <p className="text-xs font-semibold text-white/70">GCO — Guidance & Counseling Office</p>
               <p className="text-[11px] text-gray-600">Kihare, Manolo Fortich, Bukidnon</p>
             </div>
           </div>

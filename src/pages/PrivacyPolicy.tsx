@@ -26,7 +26,7 @@ export default function PrivacyPolicy() {
           <section>
             <h2 className="text-lg font-bold text-white mb-3">1. Introduction</h2>
             <p>
-              This Privacy Policy explains how the Northern Bukidnon State College (NBSC) Guidance and Counseling Office collects, uses, and protects the personal information of students who use this Official Enrollment Portal. By using this system, you agree to the terms described in this policy.
+              This Privacy Policy explains how the Northern Bukidnon State College (NBSC) Guidance and Counseling Office collects, uses, and protects the personal information of students who use this Official Management System. By using this system, you agree to the terms described in this policy.
             </p>
           </section>
 
