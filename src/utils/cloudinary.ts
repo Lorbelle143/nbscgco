@@ -2,6 +2,7 @@
  * Cloudinary upload utility with backup account fallback
  * Primary account is tried first — if it fails, backup account is used automatically.
  * Free tier per account: 25GB storage + 25GB bandwidth/month
+ * Max file size: 10MB per upload
  */
 
 // Primary account
@@ -16,6 +17,53 @@ function getResourceType(file: File): 'image' | 'video' | 'raw' {
   if (file.type.startsWith('image/')) return 'image';
   if (file.type.startsWith('video/')) return 'video';
   return 'raw';
+}
+
+/** Compress image if larger than maxSizeMB */
+async function compressImage(file: File, maxSizeMB = 2): Promise<File> {
+  if (file.size <= maxSizeMB * 1024 * 1024) return file; // already small enough
+  
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        
+        // Scale down if too large
+        const maxDim = 1920;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = (height / width) * maxDim;
+            width = maxDim;
+          } else {
+            width = (width / height) * maxDim;
+            height = maxDim;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { reject(new Error('Compression failed')); return; }
+            const compressed = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() });
+            resolve(compressed);
+          },
+          'image/jpeg',
+          0.85 // quality
+        );
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
 }
 
 async function uploadToAccount(
@@ -52,16 +100,26 @@ export async function uploadToCloudinary(
     throw new Error('Cloudinary is not configured. Add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your .env file.');
   }
 
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Only image files are allowed.');
+  }
+
+  // Hard limit — reject files over 10MB before even trying
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('File is too large. Maximum size is 10MB.');
+  }
+
+  // Compress if larger than 2MB
+  const fileToUpload = file.type.startsWith('image/') ? await compressImage(file, 2) : file;
+
   try {
-    // Try primary account first
-    return await uploadToAccount(file, folder, CLOUD_NAME, UPLOAD_PRESET);
+    return await uploadToAccount(fileToUpload, folder, CLOUD_NAME, UPLOAD_PRESET);
   } catch (primaryError) {
-    // Fallback to backup account if configured
     if (BACKUP_CLOUD_NAME && BACKUP_UPLOAD_PRESET) {
       console.warn('Primary Cloudinary failed, trying backup account...', primaryError);
-      return await uploadToAccount(file, folder, BACKUP_CLOUD_NAME, BACKUP_UPLOAD_PRESET);
+      return await uploadToAccount(fileToUpload, folder, BACKUP_CLOUD_NAME, BACKUP_UPLOAD_PRESET);
     }
-    // No backup configured — rethrow original error
     throw primaryError;
   }
 }
