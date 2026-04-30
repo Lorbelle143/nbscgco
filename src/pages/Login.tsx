@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase, supabaseAdmin } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
+import type { UserRole } from '../store/authStore';
 
 const CAMPUS = "/nbsc-bg.jpg";
 
@@ -14,7 +15,7 @@ export default function Login() {
   const [attempts, setAttempts] = useState(0);
   const [lockout, setLockout] = useState<number | null>(null);
   const navigate = useNavigate();
-  const { setUser, setIsAdmin } = useAuthStore();
+  const { setUser, setIsAdmin, setRole } = useAuthStore();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +38,7 @@ export default function Login() {
       }
       if (data.user) {
         const { data: fp, error: fe } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle();
-        if (fe || !fp) { setError('Your account was deleted. Please contact the administrator.'); await supabase.auth.signOut(); setLoading(false); return; }
+        if (fe || !fp) { setError('Account setup incomplete. Please contact the administrator to set up your profile.'); await supabase.auth.signOut(); setLoading(false); return; }
         if (fp.pending_password) {
           try {
             const { error: pe } = await supabase.auth.updateUser({ password: fp.pending_password });
@@ -46,7 +47,10 @@ export default function Login() {
           } catch { await supabase.auth.signOut(); setError('An error occurred. Please try again.'); setLoading(false); return; }
         }
         await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', data.user.id);
-        setUser(data.user); setIsAdmin(false); navigate('/dashboard');
+        const role: UserRole = fp.role || (fp.is_admin ? 'admin' : 'student');
+        const isAdmin = fp.is_admin || false;
+        setUser(data.user); setIsAdmin(isAdmin); setRole(role);
+        navigate(role === 'admin' ? '/admin' : role === 'staff' ? '/staff' : '/dashboard');
       }
     } catch (err: any) { setError('Login failed: ' + (err.message || 'Unknown error')); }
     setLoading(false);

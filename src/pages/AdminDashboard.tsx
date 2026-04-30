@@ -172,12 +172,7 @@ export default function AdminDashboard() {
     }
     try {
       setAdminPasswordLoading(true);
-
-      // Upsert new key into admin_settings
-      const { error } = await supabase
-        .from('admin_settings')
-        .upsert({ id: 1, master_key: adminPasswordData.newPass, updated_at: new Date().toISOString() });
-
+      const { error } = await supabase.auth.updateUser({ password: adminPasswordData.newPass });
       if (error) throw error;
       toast.success('Password changed successfully');
       setShowAdminPasswordModal(false);

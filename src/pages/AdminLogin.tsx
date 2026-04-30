@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
+import { useAuthStore } from '../store/authStore';
 
 const LOCKOUT_KEY = 'admin_lockout';
 const ATTEMPTS_KEY = 'admin_attempts';
 const MAX_ATTEMPTS = 5;
-const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes (was 30s — too short)
+const LOCKOUT_DURATION = 5 * 60 * 1000; // 5 minutes
 
 function getLockout() {
   const v = localStorage.getItem(LOCKOUT_KEY);
@@ -31,16 +31,16 @@ function clearAttempts() {
 }
 
 export default function AdminLogin() {
-  const [masterKey, setMasterKey] = useState('');
-  const [showKey, setShowKey] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [lockoutUntil, setLockoutUntil] = useState<number | null>(getLockout);
+  const [countdown, setCountdown] = useState(0);
   const navigate = useNavigate();
   const { setUser, setIsAdmin } = useAuthStore();
 
-  // Countdown timer for lockout display
-  const [countdown, setCountdown] = useState(0);
   useEffect(() => {
     if (!lockoutUntil) return;
     const tick = () => {
@@ -59,62 +59,74 @@ export default function AdminLogin() {
 
     const currentLockout = getLockout();
     if (currentLockout && Date.now() < currentLockout) {
-      const secsLeft = Math.ceil((currentLockout - Date.now()) / 1000);
-      setError(`Too many failed attempts. Try again in ${secsLeft}s.`);
+      setError(`Too many failed attempts. Try again in ${Math.ceil((currentLockout - Date.now()) / 1000)}s.`);
       return;
     }
 
     setLoading(true);
 
     // Artificial delay to slow brute force
-    await new Promise(r => setTimeout(r, 800));
+    await new Promise(r => setTimeout(r, 600));
 
     try {
-      // Use env key first — fallback to Supabase only if env key is not set
-      const envKey = import.meta.env.VITE_ADMIN_MASTER_KEY;
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
-      let validKey = envKey;
-
-      // Only try Supabase if env key is missing
-      if (!envKey) {
-        try {
-          const { data: settings } = await supabase
-            .from('admin_settings')
-            .select('master_key')
-            .eq('id', 1)
-            .maybeSingle();
-          validKey = settings?.master_key || '';
-        } catch {
-          // Supabase unreachable — can't validate
-          setError('Cannot connect to server. Please check your connection.');
-          setLoading(false);
-          return;
-        }
-      }
-
-      if (masterKey !== validKey) {
-        const newAttempts = incrementAttempts();
-        if (newAttempts >= MAX_ATTEMPTS) {
+      if (signInError) {
+        const n = incrementAttempts();
+        if (n >= MAX_ATTEMPTS) {
           const until = Date.now() + LOCKOUT_DURATION;
           setLockoutStorage(until);
           setLockoutUntil(until);
           setError('Too many failed attempts. Please wait 5 minutes.');
         } else {
-          setError('Invalid master key. Please try again.');
+          setError('Incorrect email or password. Please try again.');
         }
         setLoading(false);
         return;
       }
-    } catch {
-      setError('An unexpected error occurred. Please try again.');
-      setLoading(false);
-      return;
+
+      if (data.user) {
+        // Check if this account has admin/staff access
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('is_admin, full_name')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (profileError || !profile) {
+          await supabase.auth.signOut();
+          setError('Account not found. Please contact the administrator.');
+          setLoading(false);
+          return;
+        }
+
+        if (!profile.is_admin) {
+          // Not an admin — sign them out and reject
+          await supabase.auth.signOut();
+          const n = incrementAttempts();
+          if (n >= MAX_ATTEMPTS) {
+            const until = Date.now() + LOCKOUT_DURATION;
+            setLockoutStorage(until);
+            setLockoutUntil(until);
+            setError('Too many failed attempts. Please wait 5 minutes.');
+          } else {
+            setError('Access denied. This portal is for authorized staff only.');
+          }
+          setLoading(false);
+          return;
+        }
+
+        // Valid admin/staff — allow in
+        clearAttempts();
+        await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', data.user.id);
+        setUser(data.user);
+        setIsAdmin(true);
+        navigate('/admin');
+      }
+    } catch (err: any) {
+      setError('Login failed: ' + (err.message || 'Unknown error'));
     }
 
-    clearAttempts();
-    setUser({ id: 'admin', email: 'admin@system' } as any);
-    setIsAdmin(true);
-    navigate('/admin');
     setLoading(false);
   };
 
@@ -202,7 +214,6 @@ export default function AdminLogin() {
 
             {/* Header */}
             <div className="flex flex-col items-center mb-8 fade-up">
-              {/* Shield icon with scan effect */}
               <div className="relative w-20 h-20 mb-5">
                 <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-orange-500/20 to-red-500/20 border border-orange-500/30 flex items-center justify-center overflow-hidden">
                   <div className="scan-line" />
@@ -216,8 +227,8 @@ export default function AdminLogin() {
                 <img src="/nbsc-logo.png" alt="NBSC" className="w-6 h-6 object-contain opacity-80" />
                 <span className="text-orange-300 text-xs font-medium tracking-wider uppercase">NBSC — GCO</span>
               </div>
-              <h1 className="text-2xl font-bold text-white mb-1">Admin Access</h1>
-              <p className="text-gray-400 text-sm">Enter your master key to continue</p>
+              <h1 className="text-2xl font-bold text-white mb-1">Staff Access</h1>
+              <p className="text-gray-400 text-sm">Sign in with your staff email to continue</p>
             </div>
 
             {error && (
@@ -230,27 +241,49 @@ export default function AdminLogin() {
             )}
 
             <form onSubmit={handleLogin} className="space-y-5">
+              {/* Email */}
               <div className="fade-up-d1">
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Master Key</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">Staff Email</label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                   </div>
                   <input
-                    type={showKey ? 'text' : 'password'}
-                    value={masterKey}
-                    onChange={(e) => setMasterKey(e.target.value)}
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
                     className="admin-input"
-                    style={{ paddingRight: '42px' }}
-                    placeholder="Enter master key"
+                    placeholder="gco@nbsc.edu.ph"
                     disabled={isLocked}
                     required
                   />
-                  <button type="button" onClick={() => setShowKey(!showKey)}
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="fade-up-d1">
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </div>
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="admin-input"
+                    style={{ paddingRight: '42px' }}
+                    placeholder="Enter your password"
+                    disabled={isLocked}
+                    required
+                  />
+                  <button type="button" onClick={() => setShowPw(!showPw)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors">
-                    {showKey ? (
+                    {showPw ? (
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -279,7 +312,7 @@ export default function AdminLogin() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                       </svg>
-                      Verifying...
+                      Signing in...
                     </span>
                   ) : (
                     <span className="flex items-center justify-center gap-2">

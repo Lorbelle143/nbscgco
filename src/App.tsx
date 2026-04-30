@@ -7,11 +7,11 @@ import SessionWarningModal from './components/SessionWarningModal';
 import OfflineBanner from './components/OfflineBanner';
 
 // Lazy-load all pages — reduces initial bundle size
-const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const Login = lazy(() => import('./pages/Login'));
 const Register = lazy(() => import('./pages/Register'));
 const StudentDashboard = lazy(() => import('./pages/StudentDashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const StaffDashboard = lazy(() => import('./pages/StaffDashboard'));
 const InventoryForm = lazy(() => import('./pages/InventoryForm'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const EditProfile = lazy(() => import('./pages/EditProfile'));
@@ -29,7 +29,7 @@ function PageLoader() {
 }
 
 function App() {
-  const { user, isAdmin, sessionChecked, initializeAuth } = useAuthStore();
+  const { user, role, sessionChecked, initializeAuth } = useAuthStore();
 
   useEffect(() => {
     if (!sessionChecked) {
@@ -48,16 +48,22 @@ function App() {
         <SessionWarningModal />
         <Suspense fallback={<PageLoader />}>
           <Routes>
-            <Route path="/login" element={!user ? <Login /> : <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />} />
-            <Route path="/admin-login" element={!user ? <AdminLogin /> : <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace />} />
+            <Route path="/login" element={!user ? <Login /> : <Navigate to={role === 'admin' ? '/admin' : role === 'staff' ? '/staff' : '/dashboard'} replace />} />
+            {/* Keep /admin-login as alias so old links still work */}
+            <Route path="/admin-login" element={<Navigate to="/login" replace />} />
             <Route path="/register" element={!user ? <Register /> : <Navigate to="/dashboard" replace />} />
             <Route path="/forgot-password" element={!user ? <ForgotPassword /> : <Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={user && !isAdmin ? <StudentDashboard /> : <Navigate to="/login" replace />} />
-            <Route path="/edit-profile" element={user && !isAdmin ? <EditProfile /> : <Navigate to="/login" replace />} />
-            <Route path="/mental-health-assessment" element={user && !isAdmin ? <MentalHealthAssessment /> : <Navigate to="/login" replace />} />
-            <Route path="/admin" element={user && isAdmin ? <AdminDashboard /> : <Navigate to="/login" replace />} />
+            {/* Student routes */}
+            <Route path="/dashboard" element={user && role === 'student' ? <StudentDashboard /> : <Navigate to="/login" replace />} />
+            <Route path="/edit-profile" element={user && role === 'student' ? <EditProfile /> : <Navigate to="/login" replace />} />
+            <Route path="/mental-health-assessment" element={user && role === 'student' ? <MentalHealthAssessment /> : <Navigate to="/login" replace />} />
+            {/* Admin routes */}
+            <Route path="/admin" element={user && role === 'admin' ? <AdminDashboard /> : <Navigate to="/login" replace />} />
+            {/* Staff routes */}
+            <Route path="/staff" element={user && role === 'staff' ? <StaffDashboard /> : <Navigate to="/login" replace />} />
+            {/* Shared */}
             <Route path="/inventory-form" element={user ? <InventoryForm /> : <Navigate to="/login" replace />} />
-            <Route path="/" element={user ? <Navigate to={isAdmin ? "/admin" : "/dashboard"} replace /> : <Home />} />
+            <Route path="/" element={user ? <Navigate to={role === 'admin' ? '/admin' : role === 'staff' ? '/staff' : '/dashboard'} replace /> : <Home />} />
             <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
