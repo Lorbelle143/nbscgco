@@ -10,9 +10,11 @@ import FollowUpTracker from '../components/FollowUpTracker';
 import CounselingSessionNotes from '../components/CounselingSessionNotes';
 import ConsentTracker from '../components/ConsentTracker';
 import MentalHealthTrends from '../components/MentalHealthTrends';
+import AppointmentScheduler from '../components/AppointmentScheduler';
+import CrisisAlert from '../components/CrisisAlert';
 import { SkeletonDashboard } from '../components/SkeletonLoader';
 
-type StaffView = 'students' | 'mental-health' | 'follow-up' | 'session-notes' | 'consent' | 'mh-trends';
+type StaffView = 'students' | 'mental-health' | 'follow-up' | 'session-notes' | 'consent' | 'mh-trends' | 'appointments' | 'submissions';
 
 export default function StaffDashboard() {
   const { signOut, user } = useAuthStore();
@@ -126,6 +128,24 @@ export default function StaffDashboard() {
       ),
     },
     {
+      key: 'submissions',
+      label: 'Submissions',
+      icon: (
+        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      ),
+    },
+    {
+      key: 'appointments',
+      label: 'Appointments',
+      icon: (
+        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        </svg>
+      ),
+    },
+    {
       key: 'mental-health',
       label: 'Mental Health',
       icon: (
@@ -202,6 +222,7 @@ export default function StaffDashboard() {
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
+      <CrisisAlert />
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-20 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -404,6 +425,8 @@ export default function StaffDashboard() {
           {viewMode === 'follow-up' && <FollowUpTracker />}
           {viewMode === 'session-notes' && <CounselingSessionNotes />}
           {viewMode === 'consent' && <ConsentTracker />}
+          {viewMode === 'appointments' && <AppointmentScheduler role="staff" />}
+          {viewMode === 'submissions' && <StaffSubmissionsView submissions={submissions} students={students} />}
         </main>
       </div>
 
@@ -452,6 +475,132 @@ export default function StaffDashboard() {
               >
                 {passwordLoading ? 'Saving...' : 'Change Password'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Inline Submissions View for Staff ──────────────────────────────────────
+function StaffSubmissionsView({ submissions, students }: { submissions: any[]; students: any[] }) {
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<any>(null);
+
+  const filtered = submissions.filter(s => {
+    const q = search.toLowerCase();
+    return (
+      (s.full_name || '').toLowerCase().includes(q) ||
+      (s.student_id || '').toLowerCase().includes(q) ||
+      (s.course || '').toLowerCase().includes(q)
+    );
+  });
+
+  const statusStyle: Record<string, string> = {
+    approved: 'bg-green-100 text-green-700',
+    'needs-revision': 'bg-yellow-100 text-yellow-700',
+    'under-review': 'bg-blue-100 text-blue-700',
+    pending: 'bg-gray-100 text-gray-600',
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1 max-w-sm">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input type="text" placeholder="Search submissions..." value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        </div>
+        <span className="text-sm text-gray-500">{filtered.length} submission{filtered.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+        {filtered.length === 0 ? (
+          <div className="py-16 text-center text-gray-400">
+            <svg className="w-10 h-10 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-sm">No submissions found</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {filtered.map(sub => {
+              const student = students.find(s => s.student_id === sub.student_id);
+              return (
+                <div key={sub.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                  {/* Photo */}
+                  <div className="w-10 h-10 rounded-full bg-blue-100 flex-shrink-0 overflow-hidden">
+                    {sub.photo_url ? (
+                      <img src={sub.photo_url} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <span className="text-blue-600 font-bold text-sm">{(sub.full_name || '?')[0].toUpperCase()}</span>
+                      </div>
+                    )}
+                  </div>
+                  {/* Info */}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{sub.full_name}</p>
+                    <p className="text-xs text-gray-400 truncate">{sub.student_id} · {sub.course} · {sub.year_level}</p>
+                  </div>
+                  {/* Status */}
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${statusStyle[sub.submission_status || 'pending'] || 'bg-gray-100 text-gray-600'}`}>
+                    {sub.submission_status || 'pending'}
+                  </span>
+                  {/* View button */}
+                  <button onClick={() => setSelected(sub)}
+                    className="text-xs px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition font-medium flex-shrink-0">
+                    View
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Detail Modal */}
+      {selected && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b sticky top-0 bg-white">
+              <h3 className="font-bold text-gray-800">Submission Details</h3>
+              <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Photo */}
+              {selected.photo_url && (
+                <div className="flex justify-center">
+                  <img src={selected.photo_url} alt="Student" className="w-24 h-24 rounded-full object-cover border-4 border-blue-100" />
+                </div>
+              )}
+              {/* Basic info */}
+              <div className="bg-gray-50 rounded-xl p-4 space-y-2 text-sm">
+                {[
+                  ['Full Name', selected.full_name],
+                  ['Student ID', selected.student_id],
+                  ['Course', selected.course],
+                  ['Year Level', selected.year_level],
+                  ['Contact', selected.contact_number],
+                  ['Status', selected.submission_status || 'pending'],
+                  ['Submitted', new Date(selected.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })],
+                ].map(([label, value]) => (
+                  <div key={label} className="flex justify-between gap-4">
+                    <span className="text-gray-500 flex-shrink-0">{label}</span>
+                    <span className="font-medium text-gray-800 text-right">{value}</span>
+                  </div>
+                ))}
+              </div>
+              {/* Admin remarks */}
+              {selected.admin_remarks && (
+                <div className="bg-yellow-50 rounded-xl p-3 border border-yellow-200">
+                  <p className="text-xs font-semibold text-yellow-700 mb-1">Admin Remarks</p>
+                  <p className="text-sm text-yellow-800">{selected.admin_remarks}</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
