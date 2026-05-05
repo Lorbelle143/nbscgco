@@ -53,7 +53,7 @@ export default function StaffDashboard() {
         supabase
           .from('profiles')
           .select('id, email, full_name, student_id, created_at, last_login, profile_picture, profile_picture_url')
-          .eq('is_admin', false)
+          .eq('role', 'student')
           .order('full_name', { ascending: true }),
         supabase
           .from('inventory_submissions')
@@ -426,7 +426,7 @@ export default function StaffDashboard() {
           {viewMode === 'session-notes' && <CounselingSessionNotes />}
           {viewMode === 'consent' && <ConsentTracker />}
           {viewMode === 'appointments' && <AppointmentScheduler role="staff" />}
-          {viewMode === 'submissions' && <StaffSubmissionsView submissions={submissions} students={students} />}
+          {viewMode === 'submissions' && <StaffSubmissionsView submissions={submissions} />}
         </main>
       </div>
 
@@ -484,7 +484,7 @@ export default function StaffDashboard() {
 }
 
 // ── Inline Submissions View for Staff ──────────────────────────────────────
-function StaffSubmissionsView({ submissions, students }: { submissions: any[]; students: any[] }) {
+function StaffSubmissionsView({ submissions }: { submissions: any[] }) {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<any>(null);
 
@@ -528,7 +528,6 @@ function StaffSubmissionsView({ submissions, students }: { submissions: any[]; s
         ) : (
           <div className="divide-y divide-gray-50">
             {filtered.map(sub => {
-              const student = students.find(s => s.student_id === sub.student_id);
               return (
                 <div key={sub.id} className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
                   {/* Photo */}

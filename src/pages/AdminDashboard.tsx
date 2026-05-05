@@ -310,8 +310,8 @@ export default function AdminDashboard() {
       const [profilesResult, submissionsResult] = await Promise.all([
         client
           .from('profiles')
-          .select('id, email, full_name, student_id, is_admin, created_at, last_login, profile_picture, profile_picture_url')
-          .eq('is_admin', false)
+          .select('id, email, full_name, student_id, is_admin, role, created_at, last_login, profile_picture, profile_picture_url')
+          .eq('role', 'student')
           .order('full_name', { ascending: true }),
         client
           .from('inventory_submissions')

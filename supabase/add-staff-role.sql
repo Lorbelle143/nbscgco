@@ -34,3 +34,8 @@ WHERE email IN (
 SELECT email, full_name, role, is_admin
 FROM profiles
 ORDER BY role, email;
+
+-- Fix existing students who have role = NULL (registered before role column was added)
+UPDATE profiles
+SET role = 'student'
+WHERE role IS NULL AND is_admin = FALSE;

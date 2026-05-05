@@ -49,7 +49,7 @@ export default function Register() {
       await new Promise(r => setTimeout(r, 500));
       const { error: pe } = await (supabaseAdmin || supabase).from('profiles').insert({
         id: userId, email: formData.email, full_name: formData.fullName,
-        student_id: `PENDING-${userId.slice(0, 8)}`, is_admin: false,
+        student_id: `PENDING-${userId.slice(0, 8)}`, is_admin: false, role: 'student',
       });
       if (pe && !pe.message.includes('duplicate')) { setError('Profile creation failed: ' + pe.message); setLoading(false); return; }
       setSuccess(true);
