@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase, supabaseAdmin } from '../lib/supabase';
@@ -70,6 +69,10 @@ export default function AdminDashboard() {
   const [studentsPage, setStudentsPage] = useState(1);
   const [studentListView, setStudentListView] = useState<'grid' | 'list'>('grid');
   const [submissionListView, setSubmissionListView] = useState<'grid' | 'list'>('grid');
+  const [userSearch, setUserSearch] = useState('');
+  const [userListView, setUserListView] = useState<'grid' | 'list'>('grid');
+  const [userPage, setUserPage] = useState(1);
+  const USER_PAGE_SIZE = 20;
 
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -1395,11 +1398,6 @@ export default function AdminDashboard() {
 
         {/* User Management View */}
         {viewMode === 'users' && (() => {
-          const [userSearch, setUserSearch] = React.useState('');
-          const [userListView, setUserListView] = React.useState<'grid' | 'list'>('grid');
-          const [userPage, setUserPage] = React.useState(1);
-          const USER_PAGE_SIZE = 20;
-
           const filteredUsers = [...users]
             .filter(u => {
               const q = userSearch.toLowerCase();
