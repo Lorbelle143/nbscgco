@@ -432,7 +432,14 @@ export default function InventoryForm() {
       // Upload new photo if provided
       if (photoFile) {
         setSubmitStatus('📤 Uploading photo... please wait');
-        photoUrl = await uploadToCloudinary(photoFile, 'nbsc-gco/student-photos');
+        try {
+          photoUrl = await uploadToCloudinary(photoFile, 'nbsc-gco/student-photos');
+        } catch (uploadErr: any) {
+          setError('Photo upload failed: ' + (uploadErr.message || 'Network error. Check your internet connection and try again.'));
+          setLoading(false);
+          setSubmitStatus('');
+          return;
+        }
         setSubmitStatus('');
       }
 
@@ -481,7 +488,7 @@ export default function InventoryForm() {
           .update(baseData)
           .eq('id', editId);
 
-        if (dbError) throw dbError;
+        if (dbError) throw new Error('Database error: ' + dbError.message + ' (code: ' + dbError.code + ')');
         setIsDirty(false);
         toast.success('Submission updated successfully!');
       } else {
@@ -494,7 +501,7 @@ export default function InventoryForm() {
             user_id: isValidUUID ? userId : '00000000-0000-0000-0000-000000000000',
           });
 
-        if (dbError) throw dbError;
+        if (dbError) throw new Error('Database error: ' + dbError.message + ' (code: ' + dbError.code + ')');
         setIsDirty(false);
         localStorage.removeItem(DRAFT_KEY);
         toast.success('Form submitted successfully!');

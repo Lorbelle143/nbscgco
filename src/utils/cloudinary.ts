@@ -78,28 +78,32 @@ async function uploadToAccount(
   formData.append('upload_preset', uploadPreset);
   formData.append('folder', folder);
 
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-    { method: 'POST', body: formData }
-  );
+  // 30-second timeout — prevents hanging forever on slow connections
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error?.message || 'Cloudinary upload failed');
+  try {
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+      { method: 'POST', body: formData, signal: controller.signal }
+    );
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || 'Cloudinary upload failed');
+    }
+
+    const data = await res.json();
+    return data.secure_url as string;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const data = await res.json();
-  return data.secure_url as string;
 }
 
 export async function uploadToCloudinary(
   file: File,
   folder = 'nbsc-gco'
 ): Promise<string> {
-  if (!CLOUD_NAME || !UPLOAD_PRESET) {
-    throw new Error('Cloudinary is not configured. Add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your .env file.');
-  }
-
   // Validate file type
   if (!file.type.startsWith('image/')) {
     throw new Error('Only image files are allowed.');
@@ -111,15 +115,44 @@ export async function uploadToCloudinary(
   }
 
   // Compress if larger than 2MB
-  const fileToUpload = file.type.startsWith('image/') ? await compressImage(file, 2) : file;
+  const fileToUpload = await compressImage(file, 2).catch(() => file);
 
-  try {
-    return await uploadToAccount(fileToUpload, folder, CLOUD_NAME, UPLOAD_PRESET);
-  } catch (primaryError) {
-    if (BACKUP_CLOUD_NAME && BACKUP_UPLOAD_PRESET) {
-      console.warn('Primary Cloudinary failed, trying backup account...', primaryError);
-      return await uploadToAccount(fileToUpload, folder, BACKUP_CLOUD_NAME, BACKUP_UPLOAD_PRESET);
+  // Try Cloudinary primary
+  if (CLOUD_NAME && UPLOAD_PRESET) {
+    try {
+      return await uploadToAccount(fileToUpload, folder, CLOUD_NAME, UPLOAD_PRESET);
+    } catch (primaryError) {
+      console.warn('Primary Cloudinary failed:', primaryError);
+      // Try backup Cloudinary account
+      if (BACKUP_CLOUD_NAME && BACKUP_UPLOAD_PRESET) {
+        try {
+          console.warn('Trying backup Cloudinary account...');
+          return await uploadToAccount(fileToUpload, folder, BACKUP_CLOUD_NAME, BACKUP_UPLOAD_PRESET);
+        } catch (backupError) {
+          console.warn('Backup Cloudinary also failed:', backupError);
+        }
+      }
     }
-    throw primaryError;
   }
+
+  // Final fallback — Supabase Storage
+  console.warn('Cloudinary unavailable, falling back to Supabase Storage...');
+  return await uploadToSupabaseStorage(fileToUpload);
+}
+
+/** Supabase Storage fallback upload */
+async function uploadToSupabaseStorage(file: File): Promise<string> {
+  const { supabase } = await import('../lib/supabase');
+  const ext = file.name.split('.').pop() || 'jpg';
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const path = `photos/${fileName}`;
+
+  const { error } = await supabase.storage
+    .from('student-photos')
+    .upload(path, file, { contentType: file.type, upsert: false });
+
+  if (error) throw new Error('Upload failed: ' + error.message);
+
+  const { data } = supabase.storage.from('student-photos').getPublicUrl(path);
+  return data.publicUrl;
 }
