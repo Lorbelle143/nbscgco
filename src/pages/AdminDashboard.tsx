@@ -318,7 +318,7 @@ export default function AdminDashboard() {
           // Exclude form_data on initial load — too heavy, fetch on demand when viewing
           .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, created_at, updated_at, reviewed_at')
           .order('created_at', { ascending: false })
-          .limit(500)
+          .limit(1000)
       ]);
 
       if (profilesResult.error) throw new Error('Profiles: ' + profilesResult.error.message);
@@ -1108,21 +1108,6 @@ export default function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setViewMode('pending-accounts')}
-            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${viewMode === 'pending-accounts' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
-          >
-            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="font-medium text-sm">Pending Accounts</span>
-            {users.filter(u => u.student_id?.startsWith('PENDING-')).length > 0 && (
-              <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${viewMode === 'pending-accounts' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
-                {users.filter(u => u.student_id?.startsWith('PENDING-')).length}
-              </span>
-            )}
-          </button>
-
-          <button
             onClick={() => setViewMode('send-notification')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${viewMode === 'send-notification' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
           >
@@ -1652,59 +1637,6 @@ export default function AdminDashboard() {
             </div>
           );
         })()}
-        {viewMode === 'pending-accounts' && (() => {
-          const pendingUsers = users.filter(u => u.student_id?.startsWith('PENDING-'));
-          return (
-            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 px-8 py-6 border-b-2 border-amber-100">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-800 mb-1">⏳ Pending Accounts</h2>
-                    <p className="text-sm text-gray-600">Students who self-registered but haven't been assigned a Student ID yet.</p>
-                  </div>
-                  <span className="text-3xl font-black text-amber-600">{pendingUsers.length}</span>
-                </div>
-              </div>
-              <div className="p-6">
-                {pendingUsers.length === 0 ? (
-                  <div className="text-center py-12 text-gray-400">
-                    <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <p className="font-medium">All accounts have been assigned a Student ID.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {pendingUsers.map(u => (
-                      <div key={u.id} className="flex items-center justify-between gap-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 font-bold flex-shrink-0">
-                            {u.full_name?.charAt(0) || '?'}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-800 text-sm truncate">{u.full_name}</p>
-                            <p className="text-xs text-gray-500 truncate">{u.email}</p>
-                            <p className="text-xs text-amber-600 font-mono">{u.student_id}</p>
-                          </div>
-                        </div>
-                        <div className="text-xs text-gray-400 flex-shrink-0">
-                          {new Date(u.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </div>
-                        <button
-                          onClick={() => { handleEditUser(u); }}
-                          className="flex-shrink-0 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded-lg font-semibold transition"
-                        >
-                          Assign ID
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })()}
-
         {/* Main Content Card */}
         {(viewMode === 'students' || viewMode === 'submissions') && (
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
@@ -2022,6 +1954,63 @@ export default function AdminDashboard() {
           {/* Submissions View */}
           {viewMode === 'submissions' && (
             <>
+            {/* Summary Stats Bar */}
+            {(() => {
+              const total = submissions.length;
+              const approved = submissions.filter(s => s.submission_status === 'approved').length;
+              const needsRevision = submissions.filter(s => s.submission_status === 'needs-revision').length;
+              const underReview = submissions.filter(s => s.submission_status === 'under-review').length;
+              const submitted = total - approved - needsRevision - underReview;
+              return (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5 px-1">
+                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-black text-blue-700">{total}</p>
+                      <p className="text-xs font-semibold text-blue-500">Total Submitted</p>
+                    </div>
+                  </div>
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-black text-green-700">{approved}</p>
+                      <p className="text-xs font-semibold text-green-500">Approved</p>
+                    </div>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-black text-amber-700">{needsRevision}</p>
+                      <p className="text-xs font-semibold text-amber-500">Needs Revision</p>
+                    </div>
+                  </div>
+                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-black text-purple-700">{underReview + submitted}</p>
+                      <p className="text-xs font-semibold text-purple-500">Pending Review</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             {/* Bulk Actions Toolbar */}
             {selectedSubmissionIds.size > 0 && (
               <div className="flex items-center gap-3 mb-4 px-4 py-3 bg-orange-50 border border-orange-200 rounded-xl">
