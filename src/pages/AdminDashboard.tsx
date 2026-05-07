@@ -5,6 +5,7 @@ import { supabase, supabaseAdmin } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { LoadingOverlay } from '../components/LoadingSpinner';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
+import { useDebounce } from '../hooks/useDebounce';
 import AdminAnalytics from '../components/AdminAnalytics';
 import MentalHealthAdmin from '../components/MentalHealthAdmin';
 import FollowUpTracker from '../components/FollowUpTracker';
@@ -14,6 +15,8 @@ import CounselingSessionNotes from '../components/CounselingSessionNotes';
 import ConsentTracker from '../components/ConsentTracker';
 import ReportsExport from '../components/ReportsExport';
 import SendNotification from '../components/SendNotification';
+import AppointmentScheduler from '../components/AppointmentScheduler';
+import CrisisAlert from '../components/CrisisAlert';
 import { printSubmission } from '../utils/printUtils';
 import { SkeletonDashboard } from '../components/SkeletonLoader';
 import { exportSubmissionPDF, exportAllSubmissionsPDF } from '../utils/pdfUtils';
@@ -32,19 +35,20 @@ export default function AdminDashboard() {
   const [adminProfile, setAdminProfile] = useState<any>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [auditSearchTerm, setAuditSearchTerm] = useState('');
+  const debouncedSearch = useDebounce(searchTerm, 300);
   const [sortBy, setSortBy] = useState<'lastName' | 'date'>('lastName');
   const [studentCourseFilter, setStudentCourseFilter] = useState('');
   const [submissionCourseFilter, setSubmissionCourseFilter] = useState('');
   const [submissionYearFilter, setSubmissionYearFilter] = useState('');
   const [showNotSubmitted, setShowNotSubmitted] = useState(false);
-  const [auditSearchTerm, setAuditSearchTerm] = useState('');
   const [showAdminPasswordModal, setShowAdminPasswordModal] = useState(false);
   const [adminPasswordData, setAdminPasswordData] = useState({ current: '', newPass: '', confirm: '' });
   const [adminPasswordLoading, setAdminPasswordLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<'view' | 'create' | 'edit'>('view');
   const [selectedSubmission, setSelectedSubmission] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<'submissions' | 'students' | 'analytics' | 'users' | 'mental-health' | 'reset-requests' | 'follow-up' | 'mh-trends' | 'bulk-import' | 'audit-log' | 'session-notes' | 'consent' | 'reports' | 'send-notification'>('submissions');
+  const [viewMode, setViewMode] = useState<'submissions' | 'students' | 'analytics' | 'users' | 'mental-health' | 'reset-requests' | 'follow-up' | 'mh-trends' | 'bulk-import' | 'audit-log' | 'session-notes' | 'consent' | 'reports' | 'send-notification' | 'pending-accounts' | 'appointments' | 'staff-management'>('submissions');
   const [actionLoading, setActionLoading] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [showUserModal, setShowUserModal] = useState(false);
@@ -65,6 +69,10 @@ export default function AdminDashboard() {
   const [studentsPage, setStudentsPage] = useState(1);
   const [studentListView, setStudentListView] = useState<'grid' | 'list'>('grid');
   const [submissionListView, setSubmissionListView] = useState<'grid' | 'list'>('grid');
+  const [userSearch, setUserSearch] = useState('');
+  const [userListView, setUserListView] = useState<'grid' | 'list'>('grid');
+  const [userPage, setUserPage] = useState(1);
+  const USER_PAGE_SIZE = 20;
 
   // Confirm dialog state
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -169,12 +177,7 @@ export default function AdminDashboard() {
     }
     try {
       setAdminPasswordLoading(true);
-
-      // Upsert new key into admin_settings
-      const { error } = await supabase
-        .from('admin_settings')
-        .upsert({ id: 1, master_key: adminPasswordData.newPass, updated_at: new Date().toISOString() });
-
+      const { error } = await supabase.auth.updateUser({ password: adminPasswordData.newPass });
       if (error) throw error;
       toast.success('Password changed successfully');
       setShowAdminPasswordModal(false);
@@ -230,29 +233,26 @@ export default function AdminDashboard() {
     }
     try {
       setActionLoading(true);
-      // Find the profile by student_id
+      // Find the profile by email (more reliable than student_id for self-registered students)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('id')
-        .eq('student_id', request.student_id)
+        .eq('email', request.email)
         .maybeSingle();
 
       if (profileError || !profile) {
-        toast.error('Student profile not found');
+        toast.error('Student profile not found. Make sure the email matches their account.');
         return;
       }
 
-      // Update auth password directly via Edge Function
       await setPasswordViaEdgeFunction(profile.id, newPassword);
 
-      // Mark request as resolved
       await supabase
         .from('password_reset_requests')
         .update({ status: 'resolved', resolved_at: new Date().toISOString() })
         .eq('id', request.id);
 
-      toast.success(`Password updated for ${request.full_name}. They can now log in with the new password.`);
-      // Email notification
+      toast.success(`Password updated for ${request.full_name}. Email notification sent.`);
       notifyPasswordReset(request.email || '', request.full_name, newPassword);
       setResetPasswordInputs(prev => { const n = {...prev}; delete n[request.id]; return n; });
       loadResetRequests();
@@ -305,17 +305,20 @@ export default function AdminDashboard() {
 
   const loadData = async () => {
     try {
-      // Use supabaseAdmin (service role) to bypass RLS for profiles query
       const client = supabaseAdmin || supabase;
 
       const [profilesResult, submissionsResult] = await Promise.all([
         client
           .from('profiles')
-          .select('*')
-          .eq('is_admin', false),
+          .select('id, email, full_name, student_id, is_admin, role, created_at, last_login, profile_picture, profile_picture_url')
+          .eq('role', 'student')
+          .order('full_name', { ascending: true }),
         client
           .from('inventory_submissions')
-          .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, form_data, created_at, updated_at, reviewed_at')
+          // Exclude form_data on initial load — too heavy, fetch on demand when viewing
+          .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, created_at, updated_at, reviewed_at')
+          .order('created_at', { ascending: false })
+          .limit(500)
       ]);
 
       if (profilesResult.error) throw new Error('Profiles: ' + profilesResult.error.message);
@@ -395,9 +398,20 @@ export default function AdminDashboard() {
     }
   };
 
-  // Fetch full submission (with photo_url) only when needed for view/print
+  // Fetch full submission with form_data only when needed for view/print/PDF
   const fetchFullSubmission = async (submission: any) => {
-    return submission; // photo_url already included in list query
+    if (submission.form_data) return submission; // already loaded
+    try {
+      const client = supabaseAdmin || supabase;
+      const { data } = await client
+        .from('inventory_submissions')
+        .select('form_data, photo_url')
+        .eq('id', submission.id)
+        .single();
+      return { ...submission, form_data: data?.form_data || {}, photo_url: data?.photo_url || submission.photo_url };
+    } catch {
+      return submission;
+    }
   };
 
   const handleView = async (submission: any) => {
@@ -784,71 +798,72 @@ export default function AdminDashboard() {
   };
 
   const exportToCSV = () => {
+    // Properly escape CSV fields — wrap in quotes, escape internal quotes
+    const escapeCSV = (val: any) => {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
     const headers = ['Student ID', 'Last Name', 'First Name', 'Course', 'Year Level', 'Contact Number', 'Submitted Date & Time'];
-    
-    // Sort submissions by last name A-Z before exporting
+
     const sortedForExport = [...filteredAndSortedSubmissions].sort((a, b) => {
       const lastNameA = (a.form_data?.lastName || a.full_name.split(' ')[0] || '').toLowerCase();
       const lastNameB = (b.form_data?.lastName || b.full_name.split(' ')[0] || '').toLowerCase();
       return lastNameA.localeCompare(lastNameB);
     });
-    
+
     const rows = sortedForExport.map(s => {
       const formData = s.form_data || {};
-      const submittedDate = new Date(s.created_at);
-      
-      // Format: MM/DD/YYYY HH:MM:SS AM/PM
-      const dateTimeString = submittedDate.toLocaleString('en-US', {
-        month: '2-digit',
-        day: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true
+      const dateTimeString = new Date(s.created_at).toLocaleString('en-US', {
+        month: '2-digit', day: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
       });
-      
       return [
-        s.student_id || '',
-        formData.lastName || '',
-        formData.firstName || '',
-        s.course || '',
-        s.year_level || '',
-        s.contact_number || '',
-        dateTimeString
-      ];
+        s.student_id || '', formData.lastName || '', formData.firstName || '',
+        s.course || '', s.year_level || '', s.contact_number || '', dateTimeString
+      ].map(escapeCSV);
     });
 
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csv = '\uFEFF' + [headers.map(escapeCSV), ...rows].map(row => row.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `student_inventory_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const exportSelectedCSV = () => {
     const selected = filteredAndSortedSubmissions.filter(s => selectedSubmissionIds.has(s.id));
     if (selected.length === 0) return;
+    const escapeCSV = (val: any) => {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
+      return str;
+    };
     const headers = ['Student ID', 'Last Name', 'First Name', 'Course', 'Year Level', 'Contact Number', 'Submitted Date & Time'];
     const rows = selected.map(s => {
       const f = s.form_data || {};
       const dt = new Date(s.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-      return [s.student_id||'', f.lastName||'', f.firstName||'', s.course||'', s.year_level||'', s.contact_number||'', dt];
+      return [s.student_id||'', f.lastName||'', f.firstName||'', s.course||'', s.year_level||'', s.contact_number||'', dt].map(escapeCSV);
     });
-    const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const csv = '\uFEFF' + [headers.map(escapeCSV), ...rows].map(r => r.join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `selected_students_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    window.URL.revokeObjectURL(url);
   };
 
   // Filter students
   const filteredStudents = students.filter(s => {
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = debouncedSearch.toLowerCase();
     const matchesSearch = (
       (s.full_name || '').toLowerCase().includes(searchLower) ||
       (s.student_id || '').toLowerCase().includes(searchLower) ||
@@ -873,7 +888,7 @@ export default function AdminDashboard() {
   // Filter submissions
   const filteredSubmissions = submissions.filter(s => {
     const formData = s.form_data || {};
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = debouncedSearch.toLowerCase();
     const matchesSearch = (
       s.full_name.toLowerCase().includes(searchLower) ||
       s.student_id.toLowerCase().includes(searchLower) ||
@@ -899,8 +914,8 @@ export default function AdminDashboard() {
   const paginatedSubmissions = filteredAndSortedSubmissions.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   // Reset to page 1 when search/sort changes
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, sortBy]);
-  useEffect(() => { setStudentsPage(1); }, [searchTerm, sortBy, studentCourseFilter, showNotSubmitted]);
+  useEffect(() => { setCurrentPage(1); }, [debouncedSearch, sortBy]);
+  useEffect(() => { setStudentsPage(1); }, [debouncedSearch, sortBy, studentCourseFilter, showNotSubmitted]);
 
   const totalStudentPages = Math.ceil(sortedStudents.length / pageSize);
   const paginatedStudents = sortedStudents.slice((studentsPage - 1) * pageSize, studentsPage * pageSize);
@@ -930,6 +945,7 @@ export default function AdminDashboard() {
 
   return (
     <>
+    <CrisisAlert />
     <div className="flex h-screen bg-gradient-to-br from-orange-50 via-white to-red-50">
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -1092,6 +1108,21 @@ export default function AdminDashboard() {
           </button>
 
           <button
+            onClick={() => setViewMode('pending-accounts')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${viewMode === 'pending-accounts' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="font-medium text-sm">Pending Accounts</span>
+            {users.filter(u => u.student_id?.startsWith('PENDING-')).length > 0 && (
+              <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${viewMode === 'pending-accounts' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                {users.filter(u => u.student_id?.startsWith('PENDING-')).length}
+              </span>
+            )}
+          </button>
+
+          <button
             onClick={() => setViewMode('send-notification')}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${viewMode === 'send-notification' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
           >
@@ -1099,6 +1130,26 @@ export default function AdminDashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
             <span className="font-medium text-sm">Send Notification</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode('appointments')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${viewMode === 'appointments' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span className="font-medium text-sm">Appointments</span>
+          </button>
+
+          <button
+            onClick={() => setViewMode('staff-management')}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${viewMode === 'staff-management' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <span className="font-medium text-sm">Staff Management</span>
           </button>
 
           <button
@@ -1153,6 +1204,7 @@ export default function AdminDashboard() {
                 {viewMode === 'analytics' && 'Analytics & Reports'}
                 {viewMode === 'mental-health' && 'Mental Health Assessments'}
                 {viewMode === 'users' && 'User Management'}
+                {viewMode === 'pending-accounts' && 'Pending Accounts'}
                 {viewMode === 'reset-requests' && 'Password Reset Requests'}
                 {viewMode === 'follow-up' && 'Follow-up Tracking'}
                 {viewMode === 'mh-trends' && 'Mental Health Trends'}
@@ -1161,6 +1213,8 @@ export default function AdminDashboard() {
                 {viewMode === 'consent' && 'Informed Consent Tracker'}
                 {viewMode === 'reports' && 'Reports & Export'}
                 {viewMode === 'send-notification' && 'Send Notification'}
+                {viewMode === 'appointments' && 'Appointments'}
+                {viewMode === 'staff-management' && 'Staff Management'}
               </h2>
             </div>
           </div>
@@ -1319,6 +1373,18 @@ export default function AdminDashboard() {
           <SendNotification students={students} />
         )}
 
+        {/* Appointments View */}
+        {viewMode === 'appointments' && (
+          <div className="p-6">
+            <AppointmentScheduler role="admin" />
+          </div>
+        )}
+
+        {/* Staff Management View */}
+        {viewMode === 'staff-management' && (
+          <AdminStaffManagement />
+        )}
+
         {/* Bulk Import View */}
         {viewMode === 'bulk-import' && (
           <div className="bg-white rounded-2xl shadow-xl p-8">
@@ -1331,89 +1397,301 @@ export default function AdminDashboard() {
         )}
 
         {/* User Management View */}
-        {viewMode === 'users' && (
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            <div className="bg-gradient-to-r from-orange-50 to-red-50 px-8 py-6 border-b-2 border-orange-100">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-800 mb-1">🔐 User Account Management</h2>
-                  <p className="text-sm text-gray-600">Manage student login accounts, passwords, and permissions</p>
+        {viewMode === 'users' && (() => {
+          const filteredUsers = [...users]
+            .filter(u => {
+              const q = userSearch.toLowerCase();
+              return (
+                (u.full_name || '').toLowerCase().includes(q) ||
+                (u.student_id || '').toLowerCase().includes(q) ||
+                (u.email || '').toLowerCase().includes(q)
+              );
+            })
+            .sort((a, b) => {
+              const lastA = (a.full_name || '').trim().split(' ').pop()?.toLowerCase() || '';
+              const lastB = (b.full_name || '').trim().split(' ').pop()?.toLowerCase() || '';
+              return lastA.localeCompare(lastB);
+            });
+
+          const totalUserPages = Math.ceil(filteredUsers.length / USER_PAGE_SIZE);
+          const pagedUsers = filteredUsers.slice((userPage - 1) * USER_PAGE_SIZE, userPage * USER_PAGE_SIZE);
+
+          return (
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-orange-50 to-red-50 px-8 py-6 border-b-2 border-orange-100">
+                <div className="flex flex-wrap justify-between items-center gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-1">🔐 User Account Management</h2>
+                    <p className="text-sm text-gray-600">
+                      {filteredUsers.length} of {users.length} student account{users.length !== 1 ? 's' : ''}
+                      {userSearch && ` matching "${userSearch}"`}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* Search */}
+                    <div className="relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search by name, ID, email..."
+                        value={userSearch}
+                        onChange={e => { setUserSearch(e.target.value); setUserPage(1); }}
+                        className="pl-9 pr-4 py-2 text-sm border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent w-56 bg-white"
+                      />
+                    </div>
+                    {/* Grid / List toggle */}
+                    <div className="flex border-2 border-gray-200 rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => setUserListView('grid')}
+                        title="Grid view"
+                        className={`px-3 py-2 transition ${userListView === 'grid' ? 'bg-orange-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => setUserListView('list')}
+                        title="List view"
+                        className={`px-3 py-2 transition ${userListView === 'list' ? 'bg-orange-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        </svg>
+                      </button>
+                    </div>
+                    {/* Create button */}
+                    <button
+                      onClick={handleCreateUser}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl hover:from-orange-700 hover:to-red-700 transition shadow-lg font-medium text-sm"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                      </svg>
+                      Create User
+                    </button>
+                  </div>
                 </div>
-                <button
-                  onClick={handleCreateUser}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-xl hover:from-orange-700 hover:to-red-700 transition shadow-lg hover:shadow-xl font-medium"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                  </svg>
-                  Create User
-                </button>
               </div>
-            </div>
 
-            <div className="p-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {users.map((user) => (
-                  <div key={user.id} className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-6 hover:shadow-lg transition">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                          {user.full_name?.charAt(0) || '?'}
+              <div className="p-6">
+                {filteredUsers.length === 0 ? (
+                  <div className="text-center py-16 text-gray-400">
+                    <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <p className="text-lg font-medium">{userSearch ? 'No users match your search' : 'No user accounts found'}</p>
+                    <p className="text-sm mt-1">{userSearch ? 'Try a different keyword' : 'Create a new user account to get started'}</p>
+                  </div>
+                ) : userListView === 'grid' ? (
+                  /* ── Grid View ── */
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {pagedUsers.map((u) => (
+                      <div key={u.id} className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-orange-200 transition-all">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-11 h-11 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center text-white font-bold text-lg shadow flex-shrink-0 overflow-hidden">
+                              {u.photo_url
+                                ? <img src={u.photo_url} alt="" className="w-full h-full object-cover" />
+                                : (u.full_name?.charAt(0) || '?')}
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="font-bold text-gray-800 text-sm truncate">{u.full_name}</h3>
+                              <p className="text-xs text-gray-500 font-mono">{u.student_id}</p>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-gray-800">{user.full_name}</h3>
-                          <p className="text-xs text-gray-500">{user.student_id}</p>
+                        <div className="space-y-1.5 mb-4 text-xs text-gray-500">
+                          <div className="flex items-center gap-1.5 truncate">
+                            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            <span className="truncate">{u.email}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            Joined {new Date(u.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </div>
+                          {u.last_login && (
+                            <div className="flex items-center gap-1.5 text-green-600">
+                              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+                              </svg>
+                              Last login {new Date(u.last_login).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}
+                            </div>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button onClick={() => handleEditUser(u)}
+                            className="px-3 py-2 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold">
+                            ✏️ Edit
+                          </button>
+                          <button onClick={() => handleDeleteUser(u.id, u.full_name)}
+                            className="px-3 py-2 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 transition font-semibold">
+                            🗑 Delete
+                          </button>
                         </div>
                       </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* ── List View ── */
+                  <div className="border border-gray-100 rounded-xl overflow-hidden">
+                    {/* List header */}
+                    <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      <div className="col-span-4">Name</div>
+                      <div className="col-span-3">Student ID</div>
+                      <div className="col-span-3">Email</div>
+                      <div className="col-span-2 text-right">Actions</div>
                     </div>
-
-                    <div className="space-y-2 mb-4">
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                        </svg>
-                        {user.email}
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                        Joined {new Date(user.created_at).toLocaleDateString()}
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => handleEditUser(user)}
-                        className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition font-medium"
-                        title="Edit User"
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user.id, user.full_name)}
-                        className="px-3 py-2 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700 transition font-medium"
-                        title="Delete User"
-                      >
-                        Delete
-                      </button>
+                    <div className="divide-y divide-gray-50">
+                      {pagedUsers.map((u) => (
+                        <div key={u.id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-orange-50/40 transition-colors">
+                          <div className="col-span-4 flex items-center gap-3 min-w-0">
+                            <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
+                              {u.photo_url
+                                ? <img src={u.photo_url} alt="" className="w-full h-full object-cover" />
+                                : (u.full_name?.charAt(0) || '?')}
+                            </div>
+                            <span className="text-sm font-semibold text-gray-800 truncate">{u.full_name}</span>
+                          </div>
+                          <div className="col-span-3 text-xs text-gray-500 font-mono truncate">{u.student_id}</div>
+                          <div className="col-span-3 text-xs text-gray-500 truncate">{u.email}</div>
+                          <div className="col-span-2 flex justify-end gap-1.5">
+                            <button onClick={() => handleEditUser(u)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+                            <button onClick={() => handleDeleteUser(u.id, u.full_name)}
+                              className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition" title="Delete">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
 
-              {users.length === 0 && (
-                <div className="text-center py-12 text-gray-500">
-                  <svg className="w-16 h-16 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                  <p className="text-lg font-medium">No user accounts found</p>
-                  <p className="text-sm mt-1">Create a new user account to get started</p>
-                </div>
-              )}
+                {/* Pagination */}
+                {totalUserPages > 1 && (
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-100">
+                    <p className="text-sm text-gray-500">
+                      Showing {(userPage - 1) * USER_PAGE_SIZE + 1}–{Math.min(userPage * USER_PAGE_SIZE, filteredUsers.length)} of {filteredUsers.length}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => setUserPage(1)}
+                        disabled={userPage === 1}
+                        className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      >«</button>
+                      <button
+                        onClick={() => setUserPage(p => Math.max(1, p - 1))}
+                        disabled={userPage === 1}
+                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      >‹ Prev</button>
+
+                      {/* Page numbers */}
+                      {Array.from({ length: totalUserPages }, (_, i) => i + 1)
+                        .filter(p => p === 1 || p === totalUserPages || Math.abs(p - userPage) <= 1)
+                        .reduce<(number | '...')[]>((acc, p, idx, arr) => {
+                          if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push('...');
+                          acc.push(p);
+                          return acc;
+                        }, [])
+                        .map((p, i) =>
+                          p === '...'
+                            ? <span key={`ellipsis-${i}`} className="px-2 py-1.5 text-xs text-gray-400">…</span>
+                            : <button
+                                key={p}
+                                onClick={() => setUserPage(p as number)}
+                                className={`px-3 py-1.5 text-xs rounded-lg border transition font-medium ${
+                                  userPage === p
+                                    ? 'bg-orange-600 text-white border-orange-600'
+                                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                                }`}
+                              >{p}</button>
+                        )
+                      }
+
+                      <button
+                        onClick={() => setUserPage(p => Math.min(totalUserPages, p + 1))}
+                        disabled={userPage === totalUserPages}
+                        className="px-3 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      >Next ›</button>
+                      <button
+                        onClick={() => setUserPage(totalUserPages)}
+                        disabled={userPage === totalUserPages}
+                        className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                      >»</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
+        {viewMode === 'pending-accounts' && (() => {
+          const pendingUsers = users.filter(u => u.student_id?.startsWith('PENDING-'));
+          return (
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 px-8 py-6 border-b-2 border-amber-100">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-1">⏳ Pending Accounts</h2>
+                    <p className="text-sm text-gray-600">Students who self-registered but haven't been assigned a Student ID yet.</p>
+                  </div>
+                  <span className="text-3xl font-black text-amber-600">{pendingUsers.length}</span>
+                </div>
+              </div>
+              <div className="p-6">
+                {pendingUsers.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <svg className="w-12 h-12 mx-auto mb-3 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="font-medium">All accounts have been assigned a Student ID.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {pendingUsers.map(u => (
+                      <div key={u.id} className="flex items-center justify-between gap-4 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-700 font-bold flex-shrink-0">
+                            {u.full_name?.charAt(0) || '?'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-gray-800 text-sm truncate">{u.full_name}</p>
+                            <p className="text-xs text-gray-500 truncate">{u.email}</p>
+                            <p className="text-xs text-amber-600 font-mono">{u.student_id}</p>
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400 flex-shrink-0">
+                          {new Date(u.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                        <button
+                          onClick={() => { handleEditUser(u); }}
+                          className="flex-shrink-0 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm rounded-lg font-semibold transition"
+                        >
+                          Assign ID
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Main Content Card */}
         {(viewMode === 'students' || viewMode === 'submissions') && (
@@ -2318,28 +2596,19 @@ export default function AdminDashboard() {
 
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Institutional Email * <span className="text-xs text-gray-500">(@nbsc.edu.ph)</span>
+                        Email *
                       </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          name="emailUsername"
-                          value={userFormData.email.replace('@nbsc.edu.ph', '')}
-                          onChange={(e) => {
-                            const username = e.target.value.replace(/@/g, '');
-                            setUserFormData({
-                              ...userFormData,
-                              email: username + '@nbsc.edu.ph'
-                            });
-                          }}
-                          className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                          placeholder="Enter Student ID"
-                          required
-                        />
-                        <span className="text-gray-600 font-medium">@nbsc.edu.ph</span>
-                      </div>
+                      <input
+                        type="email"
+                        name="email"
+                        value={userFormData.email}
+                        onChange={handleUserFormChange}
+                        className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                        placeholder="e.g. student@gmail.com"
+                        required
+                      />
                       <p className="text-xs text-gray-500 mt-1">
-                        Example: 2021-12345@nbsc.edu.ph (Use Student ID as email)
+                        Student's personal email address
                       </p>
                     </div>
                   </>
@@ -3225,6 +3494,289 @@ function StudentModal({ mode, submission, onClose, onSave }: any) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Admin Staff Management ─────────────────────────────────────────────────
+function AdminStaffManagement() {
+  const toast = useToastContext();
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
+  const [selected, setSelected] = useState<any>(null);
+  const [form, setForm] = useState({ full_name: '', email: '', password: '', confirmPassword: '' });
+  const [showPw, setShowPw] = useState(false);
+
+  useEffect(() => { loadStaff(); }, []);
+
+  const loadStaff = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await (supabaseAdmin || supabase)
+        .from('profiles')
+        .select('id, email, full_name, student_id, role, is_admin, created_at, last_login')
+        .eq('role', 'staff')
+        .order('full_name');
+      if (error) throw error;
+      setStaffList(data || []);
+    } catch (e: any) {
+      toast.error('Failed to load staff: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openCreate = () => {
+    setForm({ full_name: '', email: '', password: '', confirmPassword: '' });
+    setModalMode('create');
+    setSelected(null);
+    setShowModal(true);
+  };
+
+  const openEdit = (staff: any) => {
+    setForm({ full_name: staff.full_name, email: staff.email, password: '', confirmPassword: '' });
+    setModalMode('edit');
+    setSelected(staff);
+    setShowModal(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.full_name.trim() || !form.email.trim()) { toast.error('Name and email are required'); return; }
+
+    if (modalMode === 'create') {
+      if (form.password.length < 6) { toast.error('Password must be at least 6 characters'); return; }
+      if (form.password !== form.confirmPassword) { toast.error('Passwords do not match'); return; }
+      if (!supabaseAdmin) { toast.error('Service role key not configured'); return; }
+
+      setActionLoading(true);
+      try {
+        // Create auth user
+        const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+          email: form.email,
+          password: form.password,
+          email_confirm: true,
+          user_metadata: { full_name: form.full_name },
+        });
+        if (authErr) throw authErr;
+        if (!authData.user) throw new Error('Failed to create auth user');
+
+        // Insert profile with role=staff
+        const { error: profileErr } = await supabaseAdmin.from('profiles').insert({
+          id: authData.user.id,
+          email: form.email,
+          full_name: form.full_name,
+          student_id: form.email, // use email as student_id for staff
+          is_admin: true,
+          role: 'staff',
+        });
+        if (profileErr) throw profileErr;
+
+        await logAudit('create', 'profiles', authData.user.id, `Created staff account: ${form.email}`);
+        toast.success('Staff account created successfully');
+        setShowModal(false);
+        loadStaff();
+      } catch (e: any) {
+        toast.error('Failed to create staff: ' + e.message);
+      } finally {
+        setActionLoading(false);
+      }
+    } else {
+      // Edit
+      setActionLoading(true);
+      try {
+        const updates: any = { full_name: form.full_name, email: form.email };
+        const { error: profileErr } = await (supabaseAdmin || supabase)
+          .from('profiles').update(updates).eq('id', selected.id);
+        if (profileErr) throw profileErr;
+
+        // Update password if provided
+        if (form.password) {
+          if (form.password.length < 6) { toast.error('Password must be at least 6 characters'); setActionLoading(false); return; }
+          if (form.password !== form.confirmPassword) { toast.error('Passwords do not match'); setActionLoading(false); return; }
+          if (supabaseAdmin) {
+            const { error: pwErr } = await supabaseAdmin.auth.admin.updateUserById(selected.id, { password: form.password });
+            if (pwErr) throw pwErr;
+          }
+        }
+
+        await logAudit('update', 'profiles', selected.id, `Updated staff account: ${form.email}`);
+        toast.success('Staff account updated');
+        setShowModal(false);
+        loadStaff();
+      } catch (e: any) {
+        toast.error('Failed to update staff: ' + e.message);
+      } finally {
+        setActionLoading(false);
+      }
+    }
+  };
+
+  const handleDelete = async (staff: any) => {
+    if (!confirm(`Delete staff account for ${staff.full_name}? This cannot be undone.`)) return;
+    setActionLoading(true);
+    try {
+      await (supabaseAdmin || supabase).from('profiles').delete().eq('id', staff.id);
+      if (supabaseAdmin) await supabaseAdmin.auth.admin.deleteUser(staff.id);
+      await logAudit('delete', 'profiles', staff.id, `Deleted staff account: ${staff.email}`);
+      toast.success('Staff account deleted');
+      loadStaff();
+    } catch (e: any) {
+      toast.error('Failed to delete: ' + e.message);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
+
+  return (
+    <div className="p-6 space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500">{staffList.length} staff account{staffList.length !== 1 ? 's' : ''}</p>
+        </div>
+        <button onClick={openCreate}
+          className="px-4 py-2 bg-orange-600 text-white rounded-xl text-sm font-semibold hover:bg-orange-700 transition shadow-sm flex items-center gap-2">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Add Staff
+        </button>
+      </div>
+
+      {/* Staff list */}
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        {staffList.length === 0 ? (
+          <div className="py-16 text-center text-gray-400">
+            <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <p className="font-medium">No staff accounts yet</p>
+            <p className="text-sm mt-1">Click "Add Staff" to create one</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {staffList.map(staff => (
+              <div key={staff.id} className="flex items-center gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+                {/* Avatar */}
+                <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-orange-600 font-bold text-sm">
+                    {(staff.full_name || staff.email)[0].toUpperCase()}
+                  </span>
+                </div>
+                {/* Info */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">{staff.full_name}</p>
+                  <p className="text-xs text-gray-400 truncate">{staff.email}</p>
+                  {staff.last_login && (
+                    <p className="text-xs text-gray-300 mt-0.5">
+                      Last login: {new Date(staff.last_login).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                  )}
+                </div>
+                {/* Role badge */}
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 flex-shrink-0">
+                  Staff
+                </span>
+                {/* Actions */}
+                <div className="flex gap-2 flex-shrink-0">
+                  <button onClick={() => openEdit(staff)}
+                    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                  <button onClick={() => handleDelete(staff)} disabled={actionLoading}
+                    className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition disabled:opacity-40" title="Delete">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Create / Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h3 className="font-bold text-gray-800 text-lg">
+                {modalMode === 'create' ? '➕ Add Staff Account' : '✏️ Edit Staff Account'}
+              </h3>
+              <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+            </div>
+            <form onSubmit={handleSave} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+                <input type="text" value={form.full_name} onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="e.g. Juan Dela Cruz" required />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
+                <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                  placeholder="staff@nbsc.edu.ph" required />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">
+                  Password {modalMode === 'edit' && <span className="text-gray-400 font-normal">(leave blank to keep current)</span>}
+                  {modalMode === 'create' && <span className="text-red-500"> *</span>}
+                </label>
+                <div className="relative">
+                  <input type={showPw ? 'text' : 'password'} value={form.password}
+                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                    className="w-full px-3 py-2 pr-10 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Minimum 6 characters"
+                    required={modalMode === 'create'} />
+                  <button type="button" onClick={() => setShowPw(!showPw)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {showPw
+                        ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      }
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              {(modalMode === 'create' || form.password) && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Confirm Password <span className="text-red-500">*</span></label>
+                  <input type={showPw ? 'text' : 'password'} value={form.confirmPassword}
+                    onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Re-enter password"
+                    required={modalMode === 'create' || !!form.password} />
+                </div>
+              )}
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowModal(false)}
+                  className="flex-1 py-2.5 border-2 border-gray-200 text-gray-600 rounded-xl font-semibold hover:bg-gray-50 transition text-sm">
+                  Cancel
+                </button>
+                <button type="submit" disabled={actionLoading}
+                  className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl font-semibold hover:bg-orange-700 transition disabled:opacity-50 text-sm">
+                  {actionLoading ? 'Saving...' : modalMode === 'create' ? 'Create Staff' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

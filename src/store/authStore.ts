@@ -3,13 +3,17 @@ import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
+export type UserRole = 'student' | 'staff' | 'admin';
+
 interface AuthState {
   user: User | null;
   isAdmin: boolean;
+  role: UserRole;
   loading: boolean;
   sessionChecked: boolean;
   setUser: (user: User | null) => void;
   setIsAdmin: (isAdmin: boolean) => void;
+  setRole: (role: UserRole) => void;
   signOut: () => Promise<void>;
   checkAuth: () => Promise<void>;
   initializeAuth: () => Promise<void>;
@@ -22,11 +26,13 @@ export const useAuthStore = create<AuthState>()(
     (set, get) => ({
       user: null,
       isAdmin: false,
+      role: 'student' as UserRole,
       loading: true,
       sessionChecked: false,
 
       setUser: (user) => set({ user }),
       setIsAdmin: (isAdmin) => set({ isAdmin }),
+      setRole: (role) => set({ role }),
 
       signOut: async () => {
         await supabase.auth.signOut();
@@ -41,29 +47,23 @@ export const useAuthStore = create<AuthState>()(
           if (user) {
             const { data: profile } = await supabase
               .from('profiles')
-              .select('is_admin')
+              .select('is_admin, role')
               .eq('id', user.id)
               .single();
-            set({ user, isAdmin: profile?.is_admin || false, loading: false, sessionChecked: true });
+            const role: UserRole = profile?.role || (profile?.is_admin ? 'admin' : 'student');
+            set({ user, isAdmin: profile?.is_admin || false, role, loading: false, sessionChecked: true });
           } else {
-            set({ user: null, isAdmin: false, loading: false, sessionChecked: true });
+            set({ user: null, isAdmin: false, role: 'student', loading: false, sessionChecked: true });
           }
         } catch {
-          set({ user: null, isAdmin: false, loading: false, sessionChecked: true });
+          set({ user: null, isAdmin: false, role: 'student', loading: false, sessionChecked: true });
         }
       },
 
       initializeAuth: async () => {
         const currentState = get();
 
-        // Restore admin session immediately from persisted state — no network call needed
-        if (currentState.isAdmin && currentState.user?.id === 'admin') {
-          set({ loading: false, sessionChecked: true });
-          registerAuthListener(set);
-          return;
-        }
-
-        // If we already have a persisted regular user, unblock the UI immediately
+        // If we already have a persisted user, unblock the UI immediately
         // then re-validate in the background
         if (currentState.user) {
           set({ loading: false, sessionChecked: true });
@@ -81,22 +81,24 @@ export const useAuthStore = create<AuthState>()(
         try {
           const { data: { session }, error } = await supabase.auth.getSession();
           if (error || !session?.user) {
-            set({ user: null, isAdmin: false, loading: false, sessionChecked: true });
+            set({ user: null, isAdmin: false, role: 'student', loading: false, sessionChecked: true });
           } else {
             const { data: profile } = await supabase
               .from('profiles')
-              .select('is_admin')
+              .select('is_admin, role')
               .eq('id', session.user.id)
               .single();
+            const role: UserRole = profile?.role || (profile?.is_admin ? 'admin' : 'student');
             set({
               user: session.user,
               isAdmin: profile?.is_admin || false,
+              role,
               loading: false,
               sessionChecked: true,
             });
           }
         } catch {
-          set({ user: null, isAdmin: false, loading: false, sessionChecked: true });
+          set({ user: null, isAdmin: false, role: 'student', loading: false, sessionChecked: true });
         }
 
         registerAuthListener(set);
@@ -107,6 +109,7 @@ export const useAuthStore = create<AuthState>()(
       // Persist enough to unblock UI on refresh instantly
       partialize: (state) => ({
         isAdmin: state.isAdmin,
+        role: state.role,
         sessionChecked: state.sessionChecked,
         user: state.user,
       }),
@@ -121,12 +124,13 @@ function registerAuthListener(set: (partial: Partial<AuthState>) => void) {
     if (event === 'SIGNED_IN' && session?.user) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('is_admin, pending_password')
+        .select('is_admin, role, pending_password')
         .eq('id', session.user.id)
         .single();
 
       const isAdmin = profile?.is_admin || false;
-      set({ user: session.user, isAdmin, loading: false, sessionChecked: true });
+      const role: UserRole = profile?.role || (isAdmin ? 'admin' : 'student');
+      set({ user: session.user, isAdmin, role, loading: false, sessionChecked: true });
 
       if (profile?.pending_password) {
         try {
@@ -137,21 +141,23 @@ function registerAuthListener(set: (partial: Partial<AuthState>) => void) {
         }
       }
     } else if (event === 'SIGNED_OUT') {
-      set({ user: null, isAdmin: false, loading: false, sessionChecked: true });
+      set({ user: null, isAdmin: false, role: 'student', loading: false, sessionChecked: true });
     } else if (event === 'TOKEN_REFRESHED' && session?.user) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('is_admin')
+        .select('is_admin, role')
         .eq('id', session.user.id)
         .single();
-      set({ user: session.user, isAdmin: profile?.is_admin || false });
+      const role: UserRole = profile?.role || (profile?.is_admin ? 'admin' : 'student');
+      set({ user: session.user, isAdmin: profile?.is_admin || false, role });
     } else if (event === 'USER_UPDATED' && session?.user) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('is_admin')
+        .select('is_admin, role')
         .eq('id', session.user.id)
         .single();
-      set({ user: session.user, isAdmin: profile?.is_admin || false });
+      const role: UserRole = profile?.role || (profile?.is_admin ? 'admin' : 'student');
+      set({ user: session.user, isAdmin: profile?.is_admin || false, role });
     }
   });
   authListenerSubscription = data.subscription;

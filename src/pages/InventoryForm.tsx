@@ -15,7 +15,13 @@ export default function InventoryForm() {
   const isAdminMode = searchParams.get('admin') === 'true'; // Check if admin is creating
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [submitStatus, setSubmitStatus] = useState('');
   const [currentSection, setCurrentSection] = useState(1);
+
+  const goToSection = (n: number) => {
+    setCurrentSection(n);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
   const [isEditMode, setIsEditMode] = useState(false);
   const [existingPhotoUrl, setExistingPhotoUrl] = useState('');
   const [formData, setFormData] = useState({
@@ -33,7 +39,7 @@ export default function InventoryForm() {
     fatherCompany: '', fatherIncome: '', fatherContact: '',
     guardianName: '', guardianAge: '', guardianEthnicity: '', guardianReligion: '',
     guardianEducation: '', guardianOccupation: '', guardianCompany: '', guardianIncome: '',
-    guardianContact: '', guardianAddress: '',
+    guardianContact: '', guardianAddress: '', guardianBirthday: '',
     parentsStatus: '', numberOfSiblings: '', birthOrder: '',
     elementarySchool: '', elementaryYears: '', elementaryAwards: '',
     juniorHighSchool: '', juniorHighYears: '', juniorHighAwards: '',
@@ -53,6 +59,7 @@ export default function InventoryForm() {
     studentSignatureUrl: '', parentSignatureUrl: '',
   });
   const [isDirty, setIsDirty] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
@@ -79,11 +86,18 @@ export default function InventoryForm() {
     const timer = setTimeout(() => {
       try {
         localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData, savedAt: new Date().toISOString() }));
+        setHasDraft(true);
         toast.info('Draft auto-saved');
       } catch { /* storage full — ignore */ }
     }, 30000);
     return () => clearTimeout(timer);
   }, [formData, isDirty]);
+
+  const clearDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+    setHasDraft(false);
+    toast.success('Draft cleared');
+  };
 
   // Restore draft on mount (only for new submissions, not edits)
   useEffect(() => {
@@ -94,6 +108,7 @@ export default function InventoryForm() {
       const { formData: saved, savedAt } = JSON.parse(raw);
       const age = Date.now() - new Date(savedAt).getTime();
       if (age < 24 * 60 * 60 * 1000) { // only restore if < 24h old
+        setHasDraft(true);
         const confirmed = window.confirm(
           `A draft was auto-saved on ${new Date(savedAt).toLocaleString()}. Restore it?`
         );
@@ -102,6 +117,7 @@ export default function InventoryForm() {
           toast.success('Draft restored');
         } else {
           localStorage.removeItem(DRAFT_KEY);
+          setHasDraft(false);
         }
       } else {
         localStorage.removeItem(DRAFT_KEY);
@@ -221,6 +237,7 @@ export default function InventoryForm() {
           guardianIncome: loadedFormData.guardianIncome || '',
           guardianContact: loadedFormData.guardianContact || '',
           guardianAddress: loadedFormData.guardianAddress || '',
+          guardianBirthday: loadedFormData.guardianBirthday || '',
           parentsStatus: loadedFormData.parentsStatus || '',
           numberOfSiblings: loadedFormData.numberOfSiblings || '',
           birthOrder: loadedFormData.birthOrder || '',
@@ -325,24 +342,24 @@ export default function InventoryForm() {
       personalEmail: 'Personal Email',
       institutionalEmail: 'Institutional Email',
       permanentAddress: 'Permanent Address',
-      // Mother
-      motherName: "Mother's Name",
-      motherAge: "Mother's Age",
-      motherEducation: "Mother's Educational Attainment",
-      motherOccupation: "Mother's Occupation",
-      motherIncome: "Mother's Monthly Income",
-      motherContact: "Mother's Contact Number",
-      // Father
-      fatherName: "Father's Name",
-      fatherAge: "Father's Age",
-      fatherEducation: "Father's Educational Attainment",
-      fatherOccupation: "Father's Occupation",
-      fatherIncome: "Father's Monthly Income",
-      fatherContact: "Father's Contact Number",
-      // Guardian
-      guardianName: "Guardian's Name",
-      guardianContact: "Guardian's Contact Number",
-      guardianAddress: "Guardian's Address",
+      // Mother — skip if marked N/A
+      ...(formData.motherName !== 'N/A' && {
+        motherName: "Mother's Name",
+        motherAge: "Mother's Age",
+        motherEducation: "Mother's Educational Attainment",
+        motherOccupation: "Mother's Occupation",
+        motherIncome: "Mother's Monthly Income",
+        motherContact: "Mother's Contact Number",
+      }),
+      // Father — skip if marked N/A
+      ...(formData.fatherName !== 'N/A' && {
+        fatherName: "Father's Name",
+        fatherAge: "Father's Age",
+        fatherEducation: "Father's Educational Attainment",
+        fatherOccupation: "Father's Occupation",
+        fatherIncome: "Father's Monthly Income",
+        fatherContact: "Father's Contact Number",
+      }),
       // Siblings
       parentsStatus: "Parents' Status",
       numberOfSiblings: 'Number of Siblings',
@@ -372,7 +389,7 @@ export default function InventoryForm() {
     if (missing.length > 0) {
       setFieldErrors(errors);
       setError(`Please fill in all required fields: ${missing.join(', ')}`);
-      setCurrentSection(1);
+      goToSection(1);
       setLoading(false);
       return;
     }
@@ -414,21 +431,53 @@ export default function InventoryForm() {
 
       // Upload new photo if provided
       if (photoFile) {
-        setError('📤 Uploading photo...');
-        photoUrl = await uploadToCloudinary(photoFile, 'nbsc-gco/student-photos');
+        setSubmitStatus('📤 Uploading photo... please wait');
+        try {
+          photoUrl = await uploadToCloudinary(photoFile, 'nbsc-gco/student-photos');
+        } catch (uploadErr: any) {
+          setError('Photo upload failed: ' + (uploadErr.message || 'Network error. Check your internet connection and try again.'));
+          setLoading(false);
+          setSubmitStatus('');
+          return;
+        }
+        setSubmitStatus('');
       }
 
-      setError('💾 Saving to database...');
+      setSubmitStatus('💾 Saving to database...');
+
+      // Auto-fill guardian from parents if guardian fields are empty
+      const resolvedFormData = { ...formData };
+      if (!resolvedFormData.guardianName.trim()) {
+        // Use mother as default guardian, fallback to father
+        const parentName = resolvedFormData.motherName || resolvedFormData.fatherName;
+        const parentAge = resolvedFormData.motherAge || resolvedFormData.fatherAge;
+        const parentBirthday = resolvedFormData.motherBirthday || resolvedFormData.fatherBirthday;
+        const parentContact = resolvedFormData.motherContact || resolvedFormData.fatherContact;
+        const parentOccupation = resolvedFormData.motherOccupation || resolvedFormData.fatherOccupation;
+        const parentEducation = resolvedFormData.motherEducation || resolvedFormData.fatherEducation;
+        const parentIncome = resolvedFormData.motherIncome || resolvedFormData.fatherIncome;
+        const parentEthnicity = resolvedFormData.motherEthnicity || resolvedFormData.fatherEthnicity;
+        const parentReligion = resolvedFormData.motherReligion || resolvedFormData.fatherReligion;
+        resolvedFormData.guardianName = parentName;
+        resolvedFormData.guardianAge = parentAge;
+        (resolvedFormData as any).guardianBirthday = parentBirthday;
+        resolvedFormData.guardianContact = parentContact;
+        resolvedFormData.guardianOccupation = parentOccupation;
+        resolvedFormData.guardianEducation = parentEducation;
+        resolvedFormData.guardianIncome = parentIncome;
+        resolvedFormData.guardianEthnicity = parentEthnicity;
+        resolvedFormData.guardianReligion = parentReligion;
+      }
 
       // Base data without user_id (used for updates to avoid UUID issues)
       const baseData = {
-        student_id: formData.idNo,
-        full_name: `${formData.firstName} ${formData.middleInitial} ${formData.lastName}`,
-        course: formData.programYear,
-        year_level: formData.programYear.split(' ')[0] || '',
-        contact_number: formData.mobilePhone,
+        student_id: resolvedFormData.idNo,
+        full_name: `${resolvedFormData.firstName} ${resolvedFormData.middleInitial} ${resolvedFormData.lastName}`,
+        course: resolvedFormData.programYear,
+        year_level: resolvedFormData.programYear.split(' ')[0] || '',
+        contact_number: resolvedFormData.mobilePhone,
         photo_url: photoUrl || '',
-        form_data: { ...formData },
+        form_data: { ...resolvedFormData },
         google_form_response_id: '',
       };
 
@@ -439,7 +488,7 @@ export default function InventoryForm() {
           .update(baseData)
           .eq('id', editId);
 
-        if (dbError) throw dbError;
+        if (dbError) throw new Error('Database error: ' + dbError.message + ' (code: ' + dbError.code + ')');
         setIsDirty(false);
         toast.success('Submission updated successfully!');
       } else {
@@ -452,7 +501,7 @@ export default function InventoryForm() {
             user_id: isValidUUID ? userId : '00000000-0000-0000-0000-000000000000',
           });
 
-        if (dbError) throw dbError;
+        if (dbError) throw new Error('Database error: ' + dbError.message + ' (code: ' + dbError.code + ')');
         setIsDirty(false);
         localStorage.removeItem(DRAFT_KEY);
         toast.success('Form submitted successfully!');
@@ -468,6 +517,7 @@ export default function InventoryForm() {
       setError(err.message || 'Failed to submit form');
     } finally {
       setLoading(false);
+      setSubmitStatus('');
     }
   };
 
@@ -523,7 +573,23 @@ export default function InventoryForm() {
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-700">Progress</h3>
-              <span className="text-sm text-gray-500">Section {currentSection} of 2</span>
+              <div className="flex items-center gap-3">
+                {hasDraft && !isEditMode && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-lg font-medium">
+                      📝 Draft saved
+                    </span>
+                    <button
+                      type="button"
+                      onClick={clearDraft}
+                      className="text-xs text-red-500 hover:text-red-700 underline transition-colors"
+                    >
+                      Clear draft
+                    </button>
+                  </div>
+                )}
+                <span className="text-sm text-gray-500">Section {currentSection} of 2</span>
+              </div>
             </div>
             <div className="flex gap-3">
               {[
@@ -533,7 +599,7 @@ export default function InventoryForm() {
                 <button
                   key={section.num}
                   type="button"
-                  onClick={() => setCurrentSection(section.num)}
+                  onClick={() => goToSection(section.num)}
                   className={`flex-1 group relative overflow-hidden rounded-xl transition-all duration-300 ${
                     currentSection === section.num
                       ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg scale-105'
@@ -842,16 +908,43 @@ export default function InventoryForm() {
                     </svg>
                     Mother's Profile
                   </h4>
+                  <label className="flex items-center gap-2 mt-3 cursor-pointer w-fit">
+                    <input
+                      type="checkbox"
+                      className="accent-pink-600 w-4 h-4"
+                      checked={formData.motherName === 'N/A'}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setFormData(prev => ({
+                            ...prev,
+                            motherName: 'N/A', motherAge: 'N/A', motherBirthday: '',
+                            motherEthnicity: 'N/A', motherReligion: 'N/A', motherEducation: 'N/A',
+                            motherOccupation: 'N/A', motherCompany: 'N/A', motherIncome: 'N/A', motherContact: 'N/A',
+                          }));
+                          setIsDirty(true);
+                        } else {
+                          setFormData(prev => ({
+                            ...prev,
+                            motherName: '', motherAge: '', motherBirthday: '',
+                            motherEthnicity: '', motherReligion: '', motherEducation: '',
+                            motherOccupation: '', motherCompany: '', motherIncome: '', motherContact: '',
+                          }));
+                          setIsDirty(true);
+                        }
+                      }}
+                    />
+                    <span className="text-sm text-gray-600 font-medium">Mother is deceased / not applicable</span>
+                  </label>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
-                    <input type="text" name="motherName" value={formData.motherName} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.motherName ? 'border-red-500 bg-red-50' : ''}`} />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+                    <input type="text" name="motherName" value={formData.motherName} onChange={handleChange} placeholder="e.g., Maria Santos" disabled={formData.motherName === 'N/A'} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.motherName ? 'border-red-500 bg-red-50' : ''} ${formData.motherName === 'N/A' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} />
                     {fieldErrors.motherName && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Age <span className="text-red-500">*</span></label>
-                    <input type="number" name="motherAge" value={formData.motherAge} onChange={handleChange} placeholder="e.g., 45" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.motherAge ? 'border-red-500 bg-red-50' : ''}`} />
+                    <input type={formData.motherName === 'N/A' ? 'text' : 'number'} name="motherAge" value={formData.motherAge} onChange={handleChange} placeholder="e.g., 45" disabled={formData.motherName === 'N/A'} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.motherAge ? 'border-red-500 bg-red-50' : ''} ${formData.motherName === 'N/A' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} />
                     {fieldErrors.motherAge && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
@@ -944,21 +1037,48 @@ export default function InventoryForm() {
                     </svg>
                     Father's Profile
                   </h4>
+                  <label className="flex items-center gap-2 mt-3 cursor-pointer w-fit">
+                    <input
+                      type="checkbox"
+                      className="accent-blue-600 w-4 h-4"
+                      checked={formData.fatherName === 'N/A'}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setFormData(prev => ({
+                            ...prev,
+                            fatherName: 'N/A', fatherAge: 'N/A', fatherBirthday: '',
+                            fatherEthnicity: 'N/A', fatherReligion: 'N/A', fatherEducation: 'N/A',
+                            fatherOccupation: 'N/A', fatherCompany: 'N/A', fatherIncome: 'N/A', fatherContact: 'N/A',
+                          }));
+                          setIsDirty(true);
+                        } else {
+                          setFormData(prev => ({
+                            ...prev,
+                            fatherName: '', fatherAge: '', fatherBirthday: '',
+                            fatherEthnicity: '', fatherReligion: '', fatherEducation: '',
+                            fatherOccupation: '', fatherCompany: '', fatherIncome: '', fatherContact: '',
+                          }));
+                          setIsDirty(true);
+                        }
+                      }}
+                    />
+                    <span className="text-sm text-gray-600 font-medium">Father is deceased / not applicable</span>
+                  </label>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
-                    <input type="text" name="fatherName" value={formData.fatherName} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.fatherName ? 'border-red-500 bg-red-50' : ''}`} />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-red-500">*</span></label>
+                    <input type="text" name="fatherName" value={formData.fatherName} onChange={handleChange} placeholder="e.g., Juan dela Cruz" disabled={formData.fatherName === 'N/A'} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.fatherName ? 'border-red-500 bg-red-50' : ''} ${formData.fatherName === 'N/A' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} />
                     {fieldErrors.fatherName && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Age <span className="text-red-500">*</span></label>
-                    <input type="number" name="fatherAge" value={formData.fatherAge} onChange={handleChange} placeholder="e.g., 48" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.fatherAge ? 'border-red-500 bg-red-50' : ''}`} />
+                    <input type={formData.fatherName === 'N/A' ? 'text' : 'number'} name="fatherAge" value={formData.fatherAge} onChange={handleChange} placeholder="e.g., 48" disabled={formData.fatherName === 'N/A'} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.fatherAge ? 'border-red-500 bg-red-50' : ''} ${formData.fatherName === 'N/A' ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''}`} />
                     {fieldErrors.fatherAge && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
-                    <input type="date" name="fatherBirthday" value={formData.fatherBirthday} onChange={handleChange} className="w-full px-4 py-2 border rounded-lg" />
+                    <input type="date" name="fatherBirthday" value={formData.fatherBirthday} onChange={handleChange} disabled={formData.fatherName === 'N/A'} className={`w-full px-4 py-2 border rounded-lg ${formData.fatherName === 'N/A' ? 'bg-gray-100 cursor-not-allowed' : ''}`} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ethnicity</label>
@@ -1047,16 +1167,76 @@ export default function InventoryForm() {
                     </svg>
                     Guardian's Profile <span className="text-xs font-normal text-gray-500 ml-1">(if living with them)</span>
                   </h4>
+                  {/* Autofill shortcuts */}
+                  <div className="flex flex-wrap gap-3 mt-3">
+                    <span className="text-xs text-gray-500 font-medium self-center">Autofill from:</span>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs text-blue-700 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition">
+                      <input
+                        type="checkbox"
+                        className="accent-blue-600"
+                        checked={false}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData(prev => ({
+                              ...prev,
+                              guardianName: prev.motherName,
+                              guardianAge: prev.motherAge,
+                              guardianBirthday: prev.motherBirthday,
+                              guardianEthnicity: prev.motherEthnicity,
+                              guardianReligion: prev.motherReligion,
+                              guardianEducation: prev.motherEducation,
+                              guardianOccupation: prev.motherOccupation,
+                              guardianCompany: prev.motherCompany,
+                              guardianIncome: prev.motherIncome,
+                              guardianContact: prev.motherContact,
+                            }));
+                            setIsDirty(true);
+                          }
+                        }}
+                      />
+                      👩 Same as Mother
+                    </label>
+                    <label className="flex items-center gap-1.5 cursor-pointer text-xs text-indigo-700 bg-indigo-50 border border-indigo-200 px-3 py-1.5 rounded-lg hover:bg-indigo-100 transition">
+                      <input
+                        type="checkbox"
+                        className="accent-indigo-600"
+                        checked={false}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData(prev => ({
+                              ...prev,
+                              guardianName: prev.fatherName,
+                              guardianAge: prev.fatherAge,
+                              guardianBirthday: prev.fatherBirthday,
+                              guardianEthnicity: prev.fatherEthnicity,
+                              guardianReligion: prev.fatherReligion,
+                              guardianEducation: prev.fatherEducation,
+                              guardianOccupation: prev.fatherOccupation,
+                              guardianCompany: prev.fatherCompany,
+                              guardianIncome: prev.fatherIncome,
+                              guardianContact: prev.fatherContact,
+                            }));
+                            setIsDirty(true);
+                          }
+                        }}
+                      />
+                      👨 Same as Father
+                    </label>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name <span className="text-red-500">*</span></label>
-                    <input type="text" name="guardianName" value={formData.guardianName} onChange={handleChange} className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.guardianName ? 'border-red-500 bg-red-50' : ''}`} />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-gray-400 font-normal">(optional)</span></label>
+                    <input type="text" name="guardianName" value={formData.guardianName} onChange={handleChange} placeholder="Leave blank to use parent info" className={`w-full px-4 py-2 border rounded-lg ${fieldErrors.guardianName ? 'border-red-500 bg-red-50' : ''}`} />
                     {fieldErrors.guardianName && <p className="text-xs text-red-600 mt-1">Required</p>}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Age and Birthday</label>
-                    <input type="text" name="guardianAge" value={formData.guardianAge} onChange={handleChange} placeholder="e.g., 50 / Jan 1, 1975" className="w-full px-4 py-2 border rounded-lg" />
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                    <input type="number" name="guardianAge" value={formData.guardianAge} onChange={handleChange} placeholder="e.g., 50" className="w-full px-4 py-2 border rounded-lg" min={1} max={120} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Birthday</label>
+                    <input type="date" name="guardianBirthday" value={(formData as any).guardianBirthday || ''} onChange={handleChange} className="w-full px-4 py-2 border rounded-lg" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Ethnicity</label>
@@ -1832,7 +2012,7 @@ export default function InventoryForm() {
               {currentSection > 1 && (
                 <button
                   type="button"
-                  onClick={() => setCurrentSection(currentSection - 1)}
+                  onClick={() => goToSection(currentSection - 1)}
                   className="flex items-center gap-2 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-xl font-medium hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1845,7 +2025,7 @@ export default function InventoryForm() {
               {currentSection < 2 ? (
                 <button
                   type="button"
-                  onClick={() => setCurrentSection(currentSection + 1)}
+                  onClick={() => goToSection(currentSection + 1)}
                   className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl font-medium hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl"
                 >
                   Next Section
@@ -1866,7 +2046,7 @@ export default function InventoryForm() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      {isEditMode ? 'Updating...' : 'Submitting...'}
+                      {submitStatus || (isEditMode ? 'Updating...' : 'Submitting...')}
                     </>
                   ) : (
                     <>

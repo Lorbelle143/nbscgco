@@ -2,6 +2,7 @@
  * Cloudinary upload utility with backup account fallback
  * Primary account is tried first — if it fails, backup account is used automatically.
  * Free tier per account: 25GB storage + 25GB bandwidth/month
+ * Max file size: 10MB per upload
  */
 
 // Primary account
@@ -18,6 +19,53 @@ function getResourceType(file: File): 'image' | 'video' | 'raw' {
   return 'raw';
 }
 
+/** Compress image if larger than maxSizeMB */
+async function compressImage(file: File, maxSizeMB = 2): Promise<File> {
+  if (file.size <= maxSizeMB * 1024 * 1024) return file; // already small enough
+  
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+        
+        // Scale down if too large
+        const maxDim = 1920;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = (height / width) * maxDim;
+            width = maxDim;
+          } else {
+            width = (width / height) * maxDim;
+            height = maxDim;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) { reject(new Error('Compression failed')); return; }
+            const compressed = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() });
+            resolve(compressed);
+          },
+          'image/jpeg',
+          0.85 // quality
+        );
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function uploadToAccount(
   file: File,
   folder: string,
@@ -30,38 +78,81 @@ async function uploadToAccount(
   formData.append('upload_preset', uploadPreset);
   formData.append('folder', folder);
 
-  const res = await fetch(
-    `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-    { method: 'POST', body: formData }
-  );
+  // 30-second timeout — prevents hanging forever on slow connections
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-  if (!res.ok) {
-    const err = await res.json();
-    throw new Error(err.error?.message || 'Cloudinary upload failed');
+  try {
+    const res = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+      { method: 'POST', body: formData, signal: controller.signal }
+    );
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error?.message || 'Cloudinary upload failed');
+    }
+
+    const data = await res.json();
+    return data.secure_url as string;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const data = await res.json();
-  return data.secure_url as string;
 }
 
 export async function uploadToCloudinary(
   file: File,
   folder = 'nbsc-gco'
 ): Promise<string> {
-  if (!CLOUD_NAME || !UPLOAD_PRESET) {
-    throw new Error('Cloudinary is not configured. Add VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET to your .env file.');
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Only image files are allowed.');
   }
 
-  try {
-    // Try primary account first
-    return await uploadToAccount(file, folder, CLOUD_NAME, UPLOAD_PRESET);
-  } catch (primaryError) {
-    // Fallback to backup account if configured
-    if (BACKUP_CLOUD_NAME && BACKUP_UPLOAD_PRESET) {
-      console.warn('Primary Cloudinary failed, trying backup account...', primaryError);
-      return await uploadToAccount(file, folder, BACKUP_CLOUD_NAME, BACKUP_UPLOAD_PRESET);
-    }
-    // No backup configured — rethrow original error
-    throw primaryError;
+  // Hard limit — reject files over 10MB before even trying
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error('File is too large. Maximum size is 10MB.');
   }
+
+  // Compress if larger than 2MB
+  const fileToUpload = await compressImage(file, 2).catch(() => file);
+
+  // Try Cloudinary primary
+  if (CLOUD_NAME && UPLOAD_PRESET) {
+    try {
+      return await uploadToAccount(fileToUpload, folder, CLOUD_NAME, UPLOAD_PRESET);
+    } catch (primaryError) {
+      console.warn('Primary Cloudinary failed:', primaryError);
+      // Try backup Cloudinary account
+      if (BACKUP_CLOUD_NAME && BACKUP_UPLOAD_PRESET) {
+        try {
+          console.warn('Trying backup Cloudinary account...');
+          return await uploadToAccount(fileToUpload, folder, BACKUP_CLOUD_NAME, BACKUP_UPLOAD_PRESET);
+        } catch (backupError) {
+          console.warn('Backup Cloudinary also failed:', backupError);
+        }
+      }
+    }
+  }
+
+  // Final fallback — Supabase Storage
+  console.warn('Cloudinary unavailable, falling back to Supabase Storage...');
+  return await uploadToSupabaseStorage(fileToUpload);
+}
+
+/** Supabase Storage fallback upload */
+async function uploadToSupabaseStorage(file: File): Promise<string> {
+  const { supabase } = await import('../lib/supabase');
+  const ext = file.name.split('.').pop() || 'jpg';
+  const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const path = `photos/${fileName}`;
+
+  const { error } = await supabase.storage
+    .from('student-photos')
+    .upload(path, file, { contentType: file.type, upsert: false });
+
+  if (error) throw new Error('Upload failed: ' + error.message);
+
+  const { data } = supabase.storage.from('student-photos').getPublicUrl(path);
+  return data.publicUrl;
 }

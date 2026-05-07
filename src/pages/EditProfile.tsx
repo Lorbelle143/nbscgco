@@ -106,11 +106,19 @@ export default function EditProfile() {
     e.preventDefault();
     setLoading(true);
 
+    // Validate full name
+    const trimmedName = profile.full_name.trim();
+    if (!trimmedName || trimmedName.length < 2) {
+      toast.error('Please enter a valid full name (at least 2 characters).');
+      setLoading(false);
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('profiles')
         .update({
-          full_name: profile.full_name,
+          full_name: trimmedName,
         })
         .eq('id', user?.id);
 
@@ -213,6 +221,8 @@ export default function EditProfile() {
                 onChange={(e) => setProfile({ ...profile, full_name: e.target.value })}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                 required
+                minLength={2}
+                placeholder="Enter your full name"
               />
             </div>
 
@@ -231,15 +241,15 @@ export default function EditProfile() {
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Institutional Email
+                Email
               </label>
               <input
                 type="email"
-                value={profile.email}
+                value={profile?.email || ''}
                 disabled
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl bg-gray-100 text-gray-500 cursor-not-allowed"
               />
-              <p className="text-xs text-gray-500 mt-1">Institutional email cannot be changed</p>
+              <p className="text-xs text-gray-500 mt-1">Email cannot be changed here</p>
             </div>
 
             <div className="flex gap-4 pt-4">

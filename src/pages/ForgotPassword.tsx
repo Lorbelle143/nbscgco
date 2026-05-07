@@ -4,8 +4,38 @@ import { supabase } from '../lib/supabase';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { notifyAdminPasswordResetRequest } from '../utils/emailNotify';
 
+const RATE_KEY = 'fp_attempts';
+const RATE_LOCKOUT_KEY = 'fp_lockout';
+const MAX_ATTEMPTS = 3;
+const LOCKOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+function isRateLimited(): boolean {
+  const lockout = localStorage.getItem(RATE_LOCKOUT_KEY);
+  if (lockout && Date.now() < parseInt(lockout)) return true;
+  if (lockout) { localStorage.removeItem(RATE_LOCKOUT_KEY); localStorage.removeItem(RATE_KEY); }
+  return false;
+}
+function getRemainingLockout(): number {
+  const lockout = localStorage.getItem(RATE_LOCKOUT_KEY);
+  return lockout ? Math.ceil((parseInt(lockout) - Date.now()) / 60000) : 0;
+}
+function recordAttempt(): boolean {
+  const n = parseInt(localStorage.getItem(RATE_KEY) || '0') + 1;
+  localStorage.setItem(RATE_KEY, String(n));
+  if (n >= MAX_ATTEMPTS) {
+    localStorage.setItem(RATE_LOCKOUT_KEY, String(Date.now() + LOCKOUT_MS));
+    localStorage.removeItem(RATE_KEY);
+    return true; // locked out
+  }
+  return false;
+}
+function clearRateLimit() {
+  localStorage.removeItem(RATE_KEY);
+  localStorage.removeItem(RATE_LOCKOUT_KEY);
+}
+
 export default function ForgotPassword() {
-  const [studentId, setStudentId] = useState('');
+  const [email, setEmail] = useState('');
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -14,19 +44,36 @@ export default function ForgotPassword() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (isRateLimited()) {
+      setError(`Too many requests. Please try again in ${getRemainingLockout()} minute(s).`);
+      return;
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setError('Please enter a valid email address.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Look up the student profile by student_id
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('full_name, email, student_id')
-        .eq('student_id', studentId.trim())
+        .eq('email', email.trim().toLowerCase())
         .maybeSingle();
 
       if (profileError) throw profileError;
+
+      // Always record attempt regardless of whether email exists (prevent email enumeration)
+      const lockedOut = recordAttempt();
+
       if (!profile) {
-        setError('No account found with that Student ID. Please check and try again.');
+        // Vague message to prevent email enumeration
+        setError('If that email is registered, a request will be submitted. Please contact the Guidance Office.');
         setLoading(false);
         return;
       }
@@ -35,7 +82,7 @@ export default function ForgotPassword() {
       const { data: existing } = await supabase
         .from('password_reset_requests')
         .select('id')
-        .eq('student_id', studentId.trim())
+        .eq('email', email.trim().toLowerCase())
         .eq('status', 'pending')
         .maybeSingle();
 
@@ -45,20 +92,18 @@ export default function ForgotPassword() {
         return;
       }
 
-      // Submit the request
       const { error: insertError } = await supabase
         .from('password_reset_requests')
         .insert({
           student_id: profile.student_id,
           full_name: profile.full_name,
           email: profile.email,
-          reason: reason.trim() || 'No reason provided',
+          reason: reason.trim().slice(0, 500) || 'No reason provided', // limit length
           status: 'pending',
         });
 
       if (insertError) throw insertError;
 
-      // Notify admin silently
       try {
         const { data: adminProfile } = await supabase
           .from('profiles').select('email').eq('is_admin', true).limit(1).single();
@@ -72,7 +117,12 @@ export default function ForgotPassword() {
         }
       } catch (_) {}
 
+      clearRateLimit();
       setSuccess(true);
+
+      if (lockedOut) {
+        setError(`Too many requests. Please try again in ${getRemainingLockout()} minute(s).`);
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to submit request. Please try again.');
     } finally {
@@ -141,23 +191,23 @@ export default function ForgotPassword() {
             <div className="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700">
               <p className="font-semibold mb-1">How it works:</p>
               <ol className="list-decimal list-inside space-y-1 text-blue-600">
-                <li>Submit your Student ID below</li>
+                <li>Enter your registered email below</li>
                 <li>The Guidance Office will set a new password for you</li>
-                <li>Log in with your Student ID — your new password will be applied automatically</li>
+                <li>Log in with your email — your new password will be applied automatically</li>
               </ol>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Student ID <span className="text-red-500">*</span>
+                  Email Address <span className="text-red-500">*</span>
                 </label>
                 <input
-                  type="text"
-                  value={studentId}
-                  onChange={e => setStudentId(e.target.value)}
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-gray-50 focus:bg-white transition-all"
-                  placeholder="e.g. 2024-00001"
+                  placeholder="e.g. yourname@gmail.com"
                   required
                 />
               </div>

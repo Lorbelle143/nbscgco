@@ -10,6 +10,17 @@ const STATUS_CONFIG = {
   declined:{ label: 'Declined',color: 'bg-red-100 text-red-700 border-red-300',         dot: 'bg-red-500' },
 };
 
+const QUESTION_LABELS: Record<string, string> = {
+  feeling_alone: 'Feeling alone',
+  feeling_blue: 'Feeling blue',
+  feeling_easily_annoyed: 'Feeling easily annoyed or irritated',
+  feeling_tense_anxious: 'Feeling tense or keyed up',
+  feeling_inferior: 'Feeling inferior to others',
+  having_suicidal_thoughts: 'Having suicidal thoughts',
+};
+
+const SCORE_LABELS = ['Never', 'Rarely', 'Sometimes', 'Often', 'Always'];
+
 export default function ConsentTracker() {
   const toast = useToastContext();
   const [records, setRecords] = useState<any[]>([]);
@@ -22,6 +33,8 @@ export default function ConsentTracker() {
   const [editingNotes, setEditingNotes] = useState<string | null>(null);
   const [notesInput, setNotesInput] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [viewModal, setViewModal] = useState<any | null>(null);
+  const [loadingAssessment, setLoadingAssessment] = useState(false);
   const PAGE_SIZE = 10;
 
   useEffect(() => { load(); }, []);
@@ -47,6 +60,20 @@ export default function ConsentTracker() {
 
     setRecords(unique.map(s => ({ ...s, consent: consentMap[s.student_id] || null })));
     setLoading(false);
+  };
+
+  const viewAssessment = async (r: any) => {
+    setLoadingAssessment(true);
+    setViewModal({ ...r, assessment: null });
+    const { data } = await supabase
+      .from('mental_health_assessments')
+      .select('*')
+      .eq('student_id', r.student_id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    setViewModal({ ...r, assessment: data });
+    setLoadingAssessment(false);
   };
 
   const updateConsent = async (student: any, status: string, notes?: string) => {
@@ -202,7 +229,7 @@ export default function ConsentTracker() {
           <div className="divide-y divide-gray-50">
             {paginated.map(r => (
               <ConsentRow key={r.student_id} r={r} saving={saving} editingNotes={editingNotes} notesInput={notesInput}
-                setEditingNotes={setEditingNotes} setNotesInput={setNotesInput} updateConsent={updateConsent} />
+                setEditingNotes={setEditingNotes} setNotesInput={setNotesInput} updateConsent={updateConsent} onView={viewAssessment} />
             ))}
           </div>
         </div>
@@ -210,7 +237,7 @@ export default function ConsentTracker() {
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {paginated.map(r => (
             <ConsentCard key={r.student_id} r={r} saving={saving} editingNotes={editingNotes} notesInput={notesInput}
-              setEditingNotes={setEditingNotes} setNotesInput={setNotesInput} updateConsent={updateConsent} />
+              setEditingNotes={setEditingNotes} setNotesInput={setNotesInput} updateConsent={updateConsent} onView={viewAssessment} />
           ))}
         </div>
       )}
@@ -245,14 +272,114 @@ export default function ConsentTracker() {
           </div>
         </div>
       )}
+
+      {/* Assessment View Modal */}
+      {viewModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setViewModal(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className={`p-5 rounded-t-2xl ${viewModal.risk_level === 'immediate-support' ? 'bg-red-50 border-b border-red-200' : 'bg-orange-50 border-b border-orange-200'}`}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-800">{viewModal.full_name}</h3>
+                  <p className="text-sm text-gray-500 font-mono">{viewModal.student_id}</p>
+                  <span className={`inline-block mt-2 px-3 py-1 rounded-full text-xs font-bold border ${viewModal.risk_level === 'immediate-support' ? 'bg-red-100 text-red-700 border-red-300' : 'bg-orange-100 text-orange-700 border-orange-300'}`}>
+                    {viewModal.risk_level === 'immediate-support' ? '🚨 Need Immediate Support' : '⚠️ Need Support'}
+                  </span>
+                </div>
+                <button onClick={() => setViewModal(null)} className="text-gray-400 hover:text-gray-600 transition p-1">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4">
+              {loadingAssessment ? (
+                <div className="flex items-center justify-center py-10">
+                  <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : viewModal.assessment ? (
+                <>
+                  {/* Score summary */}
+                  <div className="flex items-center gap-4 bg-gray-50 rounded-xl p-4 border border-gray-200">
+                    <div className={`w-16 h-16 rounded-full flex flex-col items-center justify-center border-4 flex-shrink-0 ${viewModal.assessment.total_score >= 14 ? 'border-red-400 bg-red-50' : 'border-orange-400 bg-orange-50'}`}>
+                      <span className="text-2xl font-black text-gray-800">{viewModal.assessment.total_score}</span>
+                      <span className="text-[10px] text-gray-500">/ 20</span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-700">Total Score</p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {viewModal.assessment.total_score >= 14 ? 'Score ≥ 14 — Immediate support required' :
+                         viewModal.assessment.total_score >= 11 ? 'Score 11–13 — Support recommended' :
+                         'Score 0–10 — Doing well'}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Assessed: {new Date(viewModal.assessment.created_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Question responses */}
+                  <div>
+                    <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">BSRS-5 Responses</p>
+                    <div className="space-y-2">
+                      {Object.entries(QUESTION_LABELS).map(([key, label]) => {
+                        const val = viewModal.assessment[key];
+                        if (val === undefined || val === null) return null;
+                        const isSuicidal = key === 'having_suicidal_thoughts';
+                        const scoreColor = isSuicidal && val > 0 ? 'text-red-600 font-bold' :
+                          val >= 3 ? 'text-red-500' : val >= 2 ? 'text-orange-500' : 'text-green-600';
+                        return (
+                          <div key={key} className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${isSuicidal ? 'bg-red-50 border border-red-200' : 'bg-gray-50 border border-gray-100'}`}>
+                            <span className={`text-gray-700 ${isSuicidal ? 'font-semibold text-red-800' : ''}`}>{label}</span>
+                            <span className={`font-bold text-xs ml-2 flex-shrink-0 ${scoreColor}`}>
+                              {val} — {SCORE_LABELS[val] || val}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Counseling notes if any */}
+                  {viewModal.assessment.counseling_notes && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+                      <p className="text-xs font-bold text-blue-700 mb-1">Counselor Notes</p>
+                      <p className="text-sm text-blue-800">{viewModal.assessment.counseling_notes}</p>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8 text-gray-400">
+                  <p className="text-3xl mb-2">📋</p>
+                  <p className="text-sm">No assessment data found for this student.</p>
+                </div>
+              )}
+            </div>
+
+            <div className="px-5 pb-5">
+              <button onClick={() => setViewModal(null)}
+                className="w-full py-2.5 bg-gray-100 text-gray-700 rounded-xl text-sm font-semibold hover:bg-gray-200 transition">
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function ConsentActions({ r, saving, updateConsent }: any) {
+function ConsentActions({ r, saving, updateConsent, onView }: any) {
   const status = r.consent?.status || 'pending';
   return (
     <div className="flex flex-wrap gap-2">
+      <button onClick={() => onView(r)}
+        className="px-3 py-1.5 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition font-semibold">
+        👁 View
+      </button>
       {status === 'signed' ? (
         <button onClick={() => updateConsent(r, 'pending')} disabled={saving === r.student_id}
           className="px-3 py-1.5 bg-gray-100 text-gray-600 text-xs rounded-lg hover:bg-gray-200 transition font-medium border border-gray-300 disabled:opacity-50">
@@ -310,7 +437,7 @@ function NotesPanel({ r, editingNotes, notesInput, setEditingNotes, setNotesInpu
   );
 }
 
-function ConsentRow({ r, saving, editingNotes, notesInput, setEditingNotes, setNotesInput, updateConsent }: any) {
+function ConsentRow({ r, saving, editingNotes, notesInput, setEditingNotes, setNotesInput, updateConsent, onView }: any) {
   const status = r.consent?.status || 'pending';
   const cfg = (STATUS_CONFIG as any)[status] || STATUS_CONFIG.pending;
   return (
@@ -338,7 +465,7 @@ function ConsentRow({ r, saving, editingNotes, notesInput, setEditingNotes, setN
           )}
         </div>
         <div className="flex flex-wrap gap-2 flex-shrink-0 items-start">
-          <ConsentActions r={r} saving={saving} updateConsent={updateConsent} />
+          <ConsentActions r={r} saving={saving} updateConsent={updateConsent} onView={onView} />
           <NotesPanel r={r} editingNotes={editingNotes} notesInput={notesInput} setEditingNotes={setEditingNotes} setNotesInput={setNotesInput} updateConsent={updateConsent} saving={saving} />
         </div>
       </div>
@@ -346,7 +473,7 @@ function ConsentRow({ r, saving, editingNotes, notesInput, setEditingNotes, setN
   );
 }
 
-function ConsentCard({ r, saving, editingNotes, notesInput, setEditingNotes, setNotesInput, updateConsent }: any) {
+function ConsentCard({ r, saving, editingNotes, notesInput, setEditingNotes, setNotesInput, updateConsent, onView }: any) {
   const status = r.consent?.status || 'pending';
   const cfg = (STATUS_CONFIG as any)[status] || STATUS_CONFIG.pending;
   return (
@@ -376,7 +503,7 @@ function ConsentCard({ r, saving, editingNotes, notesInput, setEditingNotes, set
           </p>
         )}
         <div className="space-y-2">
-          <ConsentActions r={r} saving={saving} updateConsent={updateConsent} />
+          <ConsentActions r={r} saving={saving} updateConsent={updateConsent} onView={onView} />
           <NotesPanel r={r} editingNotes={editingNotes} notesInput={notesInput} setEditingNotes={setEditingNotes} setNotesInput={setNotesInput} updateConsent={updateConsent} saving={saving} />
         </div>
       </div>
