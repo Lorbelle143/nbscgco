@@ -1503,6 +1503,11 @@ export default function AdminDashboard() {
                               <p className="text-xs text-gray-500 font-mono">{u.student_id}</p>
                             </div>
                           </div>
+                          {/* Status badge */}
+                          {u.student_id?.startsWith('PENDING-')
+                            ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">⏳ Pending</span>
+                            : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-300 whitespace-nowrap">✅ Active</span>
+                          }
                         </div>
                         <div className="space-y-1.5 mb-4 text-xs text-gray-500">
                           <div className="flex items-center gap-1.5 truncate">
@@ -1544,15 +1549,16 @@ export default function AdminDashboard() {
                   <div className="border border-gray-100 rounded-xl overflow-hidden">
                     {/* List header */}
                     <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                      <div className="col-span-4">Name</div>
-                      <div className="col-span-3">Student ID</div>
+                      <div className="col-span-3">Name</div>
+                      <div className="col-span-2">Student ID</div>
                       <div className="col-span-3">Email</div>
+                      <div className="col-span-2">Status</div>
                       <div className="col-span-2 text-right">Actions</div>
                     </div>
                     <div className="divide-y divide-gray-50">
                       {pagedUsers.map((u) => (
                         <div key={u.id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center hover:bg-orange-50/40 transition-colors">
-                          <div className="col-span-4 flex items-center gap-3 min-w-0">
+                          <div className="col-span-3 flex items-center gap-3 min-w-0">
                             <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-full flex items-center justify-center text-white font-bold text-sm flex-shrink-0 overflow-hidden">
                               {u.photo_url
                                 ? <img src={u.photo_url} alt="" className="w-full h-full object-cover" />
@@ -1560,8 +1566,14 @@ export default function AdminDashboard() {
                             </div>
                             <span className="text-sm font-semibold text-gray-800 truncate">{u.full_name}</span>
                           </div>
-                          <div className="col-span-3 text-xs text-gray-500 font-mono truncate">{u.student_id}</div>
+                          <div className="col-span-2 text-xs text-gray-500 font-mono truncate">{u.student_id}</div>
                           <div className="col-span-3 text-xs text-gray-500 truncate">{u.email}</div>
+                          <div className="col-span-2">
+                            {u.student_id?.startsWith('PENDING-')
+                              ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300">⏳ Pending</span>
+                              : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-300">✅ Active</span>
+                            }
+                          </div>
                           <div className="col-span-2 flex justify-end gap-1.5">
                             <button onClick={() => handleEditUser(u)}
                               className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
