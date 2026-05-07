@@ -6,6 +6,7 @@ import { notifyCustomAnnouncement } from '../utils/emailNotify';
 
 const NOTIFICATION_TYPES = [
   { value: 'general', label: '📢 General Announcement', color: 'bg-gray-100 text-gray-700' },
+  { value: 'password_change', label: '🔑 Password Change', color: 'bg-red-100 text-red-700' },
   { value: 'submission_approved', label: '✅ Form Approved', color: 'bg-green-100 text-green-700' },
   { value: 'submission_needs_revision', label: '✏️ Needs Revision', color: 'bg-amber-100 text-amber-700' },
   { value: 'submission_under_review', label: '🔍 Under Review', color: 'bg-blue-100 text-blue-700' },
