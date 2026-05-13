@@ -62,3 +62,51 @@ export type Database = {
     };
   };
 };
+
+// ─── Fallback-aware query wrapper ────────────────────────────────
+// Usage: instead of supabase.from('profiles').select(...)
+// use: withFallback(() => supabase.from('profiles').select(...), () => neonDb.getProfiles())
+
+import { markSupabaseUnhealthy, markSupabaseHealthy, isNeonConfigured, neonDb } from './neon';
+
+export { neonDb };
+
+export async function withFallback<T>(
+  supabaseQuery: () => Promise<{ data: T | null; error: any }>,
+  neonFallback: () => Promise<T>
+): Promise<T> {
+  try {
+    const { data, error } = await supabaseQuery();
+    if (error) {
+      // Check if it's a disk IO / resource exhaustion error
+      const msg = error.message?.toLowerCase() || '';
+      const isExhausted =
+        msg.includes('disk') ||
+        msg.includes('io') ||
+        msg.includes('resource') ||
+        msg.includes('throttl') ||
+        msg.includes('timeout') ||
+        msg.includes('unavailable') ||
+        error.code === '53100' || // disk_full
+        error.code === '53200' || // out_of_memory
+        error.code === '53300';   // too_many_connections
+
+      if (isExhausted && isNeonConfigured()) {
+        markSupabaseUnhealthy();
+        console.warn('🔄 Supabase exhausted — falling back to Neon:', error.message);
+        return await neonFallback();
+      }
+      throw error;
+    }
+    markSupabaseHealthy();
+    return data as T;
+  } catch (err: any) {
+    // Network error or timeout — try Neon
+    if (isNeonConfigured()) {
+      markSupabaseUnhealthy();
+      console.warn('🔄 Supabase unreachable — falling back to Neon:', err.message);
+      return await neonFallback();
+    }
+    throw err;
+  }
+}

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase, supabaseAdmin } from '../lib/supabase';
+import { cacheProfiles, cacheSubmissions, getCachedProfiles, getCachedSubmissions, getCacheAge } from '../lib/cache';
+import { neonRead, markSupabaseUnhealthy, markSupabaseHealthy, isNeonConfigured } from '../lib/neon';
 import { useToastContext } from '../contexts/ToastContext';
 import { LoadingOverlay } from '../components/LoadingSpinner';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
@@ -306,39 +308,89 @@ export default function AdminDashboard() {
   const loadData = async () => {
     try {
       const client = supabaseAdmin || supabase;
+      const BATCH = 1000;
 
-      // Fetch ALL profiles using pagination (Supabase default limit is 1000)
+      // Fetch ALL profiles using pagination with cache fallback
       let allProfiles: any[] = [];
       let profilesFrom = 0;
-      const BATCH = 1000;
-      while (true) {
-        const { data, error } = await client
-          .from('profiles')
-          .select('id, email, full_name, student_id, is_admin, role, created_at, last_login, profile_picture, profile_picture_url')
-          .or('role.eq.student,role.is.null,is_admin.eq.false')
-          .order('full_name', { ascending: true })
-          .range(profilesFrom, profilesFrom + BATCH - 1);
-        if (error) throw new Error('Profiles: ' + error.message);
-        if (!data || data.length === 0) break;
-        allProfiles = [...allProfiles, ...data];
-        if (data.length < BATCH) break;
-        profilesFrom += BATCH;
+      let profilesFromCache = false;
+
+      try {
+        while (true) {
+          const { data, error } = await client
+            .from('profiles')
+            .select('id, email, full_name, student_id, is_admin, role, created_at, last_login, profile_picture, profile_picture_url')
+            .or('role.eq.student,role.is.null,is_admin.eq.false')
+            .order('full_name', { ascending: true })
+            .range(profilesFrom, profilesFrom + BATCH - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          allProfiles = [...allProfiles, ...data];
+          if (data.length < BATCH) break;
+          profilesFrom += BATCH;
+        }
+        markSupabaseHealthy();
+        cacheProfiles(allProfiles);
+      } catch (err: any) {
+        markSupabaseUnhealthy();
+        // Try Neon first, then cache
+        if (isNeonConfigured()) {
+          try {
+            console.warn('🔄 Profiles: falling back to Neon');
+            allProfiles = await neonRead.getProfiles();
+            profilesFromCache = true;
+          } catch {
+            allProfiles = getCachedProfiles();
+            profilesFromCache = true;
+          }
+        } else {
+          allProfiles = getCachedProfiles();
+          profilesFromCache = true;
+        }
+        if (allProfiles.length === 0) throw new Error('No profile data available');
       }
 
-      // Fetch ALL submissions using pagination
+      // Fetch ALL submissions using pagination with cache fallback
       let allSubmissions: any[] = [];
       let submissionsFrom = 0;
-      while (true) {
-        const { data, error } = await client
-          .from('inventory_submissions')
-          .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, created_at, updated_at, reviewed_at')
-          .order('created_at', { ascending: false })
-          .range(submissionsFrom, submissionsFrom + BATCH - 1);
-        if (error) throw new Error('Submissions: ' + error.message);
-        if (!data || data.length === 0) break;
-        allSubmissions = [...allSubmissions, ...data];
-        if (data.length < BATCH) break;
-        submissionsFrom += BATCH;
+      let submissionsFromCache = false;
+
+      try {
+        while (true) {
+          const { data, error } = await client
+            .from('inventory_submissions')
+            .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, created_at, updated_at, reviewed_at')
+            .order('created_at', { ascending: false })
+            .range(submissionsFrom, submissionsFrom + BATCH - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          allSubmissions = [...allSubmissions, ...data];
+          if (data.length < BATCH) break;
+          submissionsFrom += BATCH;
+        }
+        markSupabaseHealthy();
+        cacheSubmissions(allSubmissions);
+      } catch (err: any) {
+        markSupabaseUnhealthy();
+        // Try Neon first, then cache
+        if (isNeonConfigured()) {
+          try {
+            console.warn('🔄 Submissions: falling back to Neon');
+            allSubmissions = await neonRead.getSubmissions();
+            submissionsFromCache = true;
+          } catch {
+            allSubmissions = getCachedSubmissions();
+            submissionsFromCache = true;
+          }
+        } else {
+          allSubmissions = getCachedSubmissions();
+          submissionsFromCache = true;
+        }
+      }
+
+      // Show warning banner if serving from cache
+      if (profilesFromCache || submissionsFromCache) {
+        toast.error(`⚠️ Supabase is currently unavailable. Showing cached data from ${getCacheAge()}. Read-only mode.`);
       }
 
       const studentsData = allProfiles;

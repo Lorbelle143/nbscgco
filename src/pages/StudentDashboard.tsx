@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
+import { cacheStudentSubmissions, cacheStudentAssessments, getCachedStudentSubmissions, getCachedStudentAssessments, getCacheAge } from '../lib/cache';
 import { useSessionTimeout, onSessionWarning } from '../hooks/useSessionTimeout';
 import { useToastContext } from '../contexts/ToastContext';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -113,7 +114,6 @@ export default function StudentDashboard() {
       if (error) throw error;
 
       // If nothing found by user_id, fallback to student_id
-      // This handles cases where submission was saved with wrong/null user_id
       if (!data || data.length === 0) {
         const { data: profileData } = await supabase
           .from('profiles')
@@ -129,21 +129,29 @@ export default function StudentDashboard() {
             .order('created_at', { ascending: false });
 
           if (byStudentId && byStudentId.length > 0) {
-            // Fix the user_id so future queries work correctly
             await supabase
               .from('inventory_submissions')
               .update({ user_id: user.id })
               .eq('student_id', profileData.student_id);
-
+            cacheStudentSubmissions(user.id, byStudentId);
             setSubmissions(byStudentId);
             return;
           }
         }
       }
 
+      // Cache successful result
+      if (data && data.length > 0) cacheStudentSubmissions(user.id, data);
       setSubmissions(data || []);
     } catch (error: any) {
-      toast.error('Failed to load submissions');
+      // Fallback to cache
+      const cached = getCachedStudentSubmissions(user.id);
+      if (cached.length > 0) {
+        setSubmissions(cached);
+        toast.error(`⚠️ Offline mode — showing cached data from ${getCacheAge()}`);
+      } else {
+        toast.error('Failed to load submissions');
+      }
     } finally {
       setLoading(false);
     }
@@ -157,11 +165,19 @@ export default function StudentDashboard() {
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
-      
+
       if (error) throw error;
+      // Cache successful result
+      if (data && data.length > 0) cacheStudentAssessments(user.id, data);
       setMentalHealthAssessments(data || []);
     } catch {
-      toast.error('Failed to load mental health assessments');
+      // Fallback to cache
+      const cached = getCachedStudentAssessments(user.id);
+      if (cached.length > 0) {
+        setMentalHealthAssessments(cached);
+      } else {
+        toast.error('Failed to load mental health assessments');
+      }
     }
   };
 

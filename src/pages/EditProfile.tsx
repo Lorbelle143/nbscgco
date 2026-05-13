@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useToastContext } from '../contexts/ToastContext';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import { syncToNeon, neonWrite } from '../lib/neon';
 
 export default function EditProfile() {
   const { user } = useAuthStore();
@@ -92,6 +93,9 @@ export default function EditProfile() {
 
       if (updateError) throw updateError;
 
+      // Sync to Neon in background
+      syncToNeon(() => neonWrite.upsertProfile({ ...profile, id: user?.id, profile_picture: publicUrl, profile_picture_url: publicUrl }));
+
       setProfile({ ...profile, profile_picture: publicUrl });
       setPreviewUrl(publicUrl);
       toast.success('Profile picture updated!');
@@ -117,12 +121,13 @@ export default function EditProfile() {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({
-          full_name: trimmedName,
-        })
+        .update({ full_name: trimmedName })
         .eq('id', user?.id);
 
       if (error) throw error;
+
+      // Sync to Neon in background
+      syncToNeon(() => neonWrite.upsertProfile({ ...profile, id: user?.id, full_name: trimmedName }));
 
       toast.success('Profile updated successfully!');
       navigate('/dashboard');

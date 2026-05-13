@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
+import { syncToNeon, neonWrite } from '../lib/neon';
 import { useToastContext } from '../contexts/ToastContext';
 import { alertCounselorSuicidalIdeation } from '../utils/emailNotify';
 
@@ -178,18 +179,20 @@ export default function MentalHealthAssessment() {
           .eq('user_id', user?.id)
           .select()
           .single();
-        
         data = result.data;
         error = result.error;
+        // Sync to Neon in background
+        if (result.data) syncToNeon(() => neonWrite.upsertMentalHealth(result.data));
       } else {
         const result = await supabase
           .from('mental_health_assessments')
           .insert(assessmentData)
           .select()
           .single();
-        
         data = result.data;
         error = result.error;
+        // Sync to Neon in background
+        if (result.data) syncToNeon(() => neonWrite.upsertMentalHealth(result.data));
       }
 
       if (error) throw error;

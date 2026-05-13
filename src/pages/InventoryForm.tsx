@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
+import { syncToNeon, neonWrite } from '../lib/neon';
 import { useSessionTimeout } from '../hooks/useSessionTimeout';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { useToastContext } from '../contexts/ToastContext';
@@ -489,19 +490,30 @@ export default function InventoryForm() {
           .eq('id', editId);
 
         if (dbError) throw new Error('Database error: ' + dbError.message + ' (code: ' + dbError.code + ')');
+
+        // Sync update to Neon in background
+        syncToNeon(() => neonWrite.upsertSubmission({ ...baseData, id: editId }));
+
         setIsDirty(false);
         toast.success('Submission updated successfully!');
       } else {
         // Insert — include user_id only if it's a valid UUID
         const isValidUUID = userId && userId !== 'admin' && /^[0-9a-f-]{36}$/i.test(userId);
-        const { error: dbError } = await supabase
+        const insertData = {
+          ...baseData,
+          user_id: isValidUUID ? userId : '00000000-0000-0000-0000-000000000000',
+        };
+        const { data: inserted, error: dbError } = await supabase
           .from('inventory_submissions')
-          .insert({
-            ...baseData,
-            user_id: isValidUUID ? userId : '00000000-0000-0000-0000-000000000000',
-          });
+          .insert(insertData)
+          .select()
+          .single();
 
         if (dbError) throw new Error('Database error: ' + dbError.message + ' (code: ' + dbError.code + ')');
+
+        // Sync insert to Neon in background
+        if (inserted) syncToNeon(() => neonWrite.upsertSubmission(inserted));
+
         setIsDirty(false);
         localStorage.removeItem(DRAFT_KEY);
         toast.success('Form submitted successfully!');
