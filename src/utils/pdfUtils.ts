@@ -15,50 +15,37 @@ export function exportSubmissionPDF(submission: any) {
 }
 
 export function exportAllSubmissionsPDF(submissions: any[]) {
-  const rows = submissions.map((s, i) => {
-    const f = s.form_data || {};
-    return `<tr>
-      <td style="text-align:center;">${i+1}</td>
-      <td>${s.student_id||''}</td>
-      <td>${f.lastName||''}, ${f.firstName||''} ${f.middleInitial||''}</td>
-      <td>${s.course||''}</td>
-      <td style="text-align:center;">${s.year_level||''}</td>
-      <td>${f.gender||''}</td>
-      <td>${s.contact_number||f.mobilePhone||''}</td>
-      <td style="text-align:center;">${new Date(s.created_at).toLocaleDateString()}</td>
-    </tr>`;
-  }).join('');
-
+  const ROWS_PER_PAGE = 35;
   const origin = window.location.origin;
 
   const css = `
     *{margin:0;padding:0;box-sizing:border-box;}
     body{font-family:Arial,sans-serif;background:#fff;color:#000;}
-    .page{width:210mm;height:297mm;overflow:hidden;}
-    .inner{width:114%;transform:scale(0.877);transform-origin:top left;padding:8mm 12mm 5mm 12mm;display:flex;flex-direction:column;height:114%;}
+    .page{width:210mm;min-height:297mm;padding:8mm 12mm 5mm 12mm;display:flex;flex-direction:column;page-break-after:always;}
+    .page:last-child{page-break-after:auto;}
     table{width:100%;border-collapse:collapse;}
-    td,th{border:1px solid #000;padding:3px 5px;vertical-align:middle;font-size:10px;}
-    th{background:#1a3a6b;color:#fff;font-size:10px;padding:5px;}
+    td,th{border:1px solid #000;padding:3px 5px;vertical-align:middle;font-size:9.5px;}
+    th{background:#1a3a6b;color:#fff;font-size:9.5px;padding:5px;}
     tr:nth-child(even) td{background:#f8fafc;}
     @media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact;}@page{size:A4;margin:0;}}
   `;
 
-  const header = `
+  const header = (page: number, totalPages: number) => `
   <div style="display:flex;align-items:center;margin-bottom:0;">
     <div style="flex:0 0 90px;text-align:center;">
-      <img src="${origin}/nbsc-logo.png" alt="NBSC" style="width:82px;height:82px;object-fit:contain;display:block;margin:0 auto;"/>
+      <img src="${origin}/nbsc-logo.png" alt="NBSC" style="width:72px;height:72px;object-fit:contain;display:block;margin:0 auto;"/>
     </div>
     <div style="flex:1;text-align:center;padding:0 10px;">
       <div style="font-size:9px;color:#000;">Republic of the Philippines</div>
-      <div style="font-size:19px;font-weight:bold;text-transform:uppercase;color:#000;line-height:1.2;">Northern Bukidnon State College</div>
+      <div style="font-size:17px;font-weight:bold;text-transform:uppercase;color:#000;line-height:1.2;">Northern Bukidnon State College</div>
       <div style="font-size:10px;color:#000;margin-top:2px;">Manolo Fortich, 8703 Bukidnon</div>
-      <div style="font-size:8.5px;font-style:italic;color:#c8a000;margin-top:2px;">Creando Futura, Transformationis Vitae, Ductae a Deo</div>
+      <div style="font-size:8px;font-style:italic;color:#c8a000;margin-top:2px;">Creando Futura, Transformationis Vitae, Ductae a Deo</div>
     </div>
   </div>
-  <div style="border-top:2px solid #7a9cc8;margin:5px 0 6px;"></div>
-  <div style="text-align:center;font-size:13px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Student Inventory Report</div>
-  <div style="text-align:center;font-size:9px;color:#64748b;margin-bottom:8px;">
-    Generated: ${new Date().toLocaleString()} &nbsp;|&nbsp; Total Students: ${submissions.length}
+  <div style="border-top:2px solid #7a9cc8;margin:4px 0 4px;"></div>
+  <div style="text-align:center;font-size:12px;font-weight:bold;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px;">Student Inventory Report</div>
+  <div style="text-align:center;font-size:8.5px;color:#64748b;margin-bottom:6px;">
+    Generated: ${new Date().toLocaleString()} &nbsp;|&nbsp; Total Students: ${submissions.length} &nbsp;|&nbsp; Page ${page} of ${totalPages}
   </div>`;
 
   const footer = `
@@ -66,31 +53,68 @@ export function exportAllSubmissionsPDF(submissions: any[]) {
     <div style="border-top:2px solid #7a9cc8;margin:0 0 4px;"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;padding:0 8px;">
       <div style="display:flex;flex-direction:column;align-items:center;gap:1px;">
-        <img src="${origin}/bagong-pilipinas.jpg" alt="Bagong Pilipinas" style="width:34px;height:34px;object-fit:contain;"/>
+        <img src="${origin}/bagong-pilipinas.jpg" alt="Bagong Pilipinas" style="width:30px;height:30px;object-fit:contain;"/>
         <span style="font-size:6px;font-weight:bold;color:#0038A8;">BAGONG PILIPINAS</span>
       </div>
       <div style="display:flex;align-items:center;gap:5px;">
-        <img src="${origin}/fb-logo.png" alt="Facebook" style="width:20px;height:20px;object-fit:contain;border-radius:50%;"/>
-        <span style="font-size:8.5px;color:#4a6fa5;">NorthernBukidnonStateCollegeOfficial</span>
+        <img src="${origin}/fb-logo.png" alt="Facebook" style="width:18px;height:18px;object-fit:contain;border-radius:50%;"/>
+        <span style="font-size:8px;color:#4a6fa5;">NorthernBukidnonStateCollegeOfficial</span>
       </div>
-      <span style="font-size:8.5px;color:#4a6fa5;">www.nbsc.edu.ph</span>
+      <span style="font-size:8px;color:#4a6fa5;">www.nbsc.edu.ph</span>
     </div>
   </div>`;
 
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Student Inventory Report</title><style>${css}</style></head><body>
-  <div class="page"><div class="inner">
-    ${header}
-    <table>
-      <thead><tr><th>#</th><th>Student ID</th><th>Name</th><th>Course</th><th>Year</th><th>Gender</th><th>Contact</th><th>Submitted</th></tr></thead>
-      <tbody>${rows || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;">No submissions</td></tr>'}</tbody>
-    </table>
-    <div style="margin-top:8px;padding:5px 8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:4px;font-size:9px;color:#92400e;text-align:center;">
-      CONFIDENTIAL — For authorized personnel only &nbsp;|&nbsp; Northern Bukidnon State College — Guidance and Counseling Office
-    </div>
-    ${footer}
-  </div></div>
-  </body></html>`;
+  const totalPages = Math.ceil(submissions.length / ROWS_PER_PAGE);
+  let pagesHtml = '';
 
+  for (let p = 0; p < totalPages; p++) {
+    const pageSubmissions = submissions.slice(p * ROWS_PER_PAGE, (p + 1) * ROWS_PER_PAGE);
+    const startIndex = p * ROWS_PER_PAGE;
+
+    const rows = pageSubmissions.map((s, i) => {
+      const f = s.form_data || {};
+      const name = f.lastName
+        ? `${f.lastName}, ${f.firstName || ''} ${f.middleInitial ? f.middleInitial + '.' : ''}`.trim()
+        : s.full_name || '';
+      const sex = f.gender || f.sex || s.sex || '';
+      return `<tr>
+        <td style="text-align:center;">${startIndex + i + 1}</td>
+        <td>${s.student_id || ''}</td>
+        <td>${name}</td>
+        <td>${sex}</td>
+        <td>${s.course || ''}</td>
+        <td style="text-align:center;">${s.year_level || ''}</td>
+        <td>${s.contact_number || f.mobilePhone || ''}</td>
+        <td style="text-align:center;">${s.submission_status === 'approved' ? '✅' : s.submission_status === 'needs-revision' ? '✏️' : '📋'}</td>
+        <td style="text-align:center;">${new Date(s.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+      </tr>`;
+    }).join('');
+
+    pagesHtml += `
+    <div class="page">
+      ${header(p + 1, totalPages)}
+      <table>
+        <thead><tr>
+          <th style="width:4%">#</th>
+          <th style="width:10%">Student ID</th>
+          <th style="width:22%">Name</th>
+          <th style="width:6%">Sex</th>
+          <th style="width:22%">Course</th>
+          <th style="width:6%">Year</th>
+          <th style="width:12%">Contact</th>
+          <th style="width:6%">Status</th>
+          <th style="width:12%">Submitted</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="margin-top:6px;padding:4px 8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:4px;font-size:8.5px;color:#92400e;text-align:center;">
+        CONFIDENTIAL — For authorized personnel only &nbsp;|&nbsp; Northern Bukidnon State College — Guidance and Counseling Office
+      </div>
+      ${footer}
+    </div>`;
+  }
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Student Inventory Report</title><style>${css}</style></head><body>${pagesHtml}</body></html>`;
   openPrintWindow(html);
 }
 

@@ -307,25 +307,42 @@ export default function AdminDashboard() {
     try {
       const client = supabaseAdmin || supabase;
 
-      const [profilesResult, submissionsResult] = await Promise.all([
-        client
+      // Fetch ALL profiles using pagination (Supabase default limit is 1000)
+      let allProfiles: any[] = [];
+      let profilesFrom = 0;
+      const BATCH = 1000;
+      while (true) {
+        const { data, error } = await client
           .from('profiles')
           .select('id, email, full_name, student_id, is_admin, role, created_at, last_login, profile_picture, profile_picture_url')
           .or('role.eq.student,role.is.null,is_admin.eq.false')
-          .order('full_name', { ascending: true }),
-        client
+          .order('full_name', { ascending: true })
+          .range(profilesFrom, profilesFrom + BATCH - 1);
+        if (error) throw new Error('Profiles: ' + error.message);
+        if (!data || data.length === 0) break;
+        allProfiles = [...allProfiles, ...data];
+        if (data.length < BATCH) break;
+        profilesFrom += BATCH;
+      }
+
+      // Fetch ALL submissions using pagination
+      let allSubmissions: any[] = [];
+      let submissionsFrom = 0;
+      while (true) {
+        const { data, error } = await client
           .from('inventory_submissions')
-          // Exclude form_data on initial load — too heavy, fetch on demand when viewing
           .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, created_at, updated_at, reviewed_at')
           .order('created_at', { ascending: false })
-          .limit(1000)
-      ]);
+          .range(submissionsFrom, submissionsFrom + BATCH - 1);
+        if (error) throw new Error('Submissions: ' + error.message);
+        if (!data || data.length === 0) break;
+        allSubmissions = [...allSubmissions, ...data];
+        if (data.length < BATCH) break;
+        submissionsFrom += BATCH;
+      }
 
-      if (profilesResult.error) throw new Error('Profiles: ' + profilesResult.error.message);
-      if (submissionsResult.error) throw new Error('Submissions: ' + submissionsResult.error.message);
-
-      const studentsData = profilesResult.data || [];
-      const submissionsData = submissionsResult.data || [];
+      const studentsData = allProfiles;
+      const submissionsData = allSubmissions;
 
       const studentsWithPhotos = studentsData.map(student => {
         const submission = submissionsData.find(s => s.student_id === student.student_id);
@@ -859,6 +876,46 @@ export default function AdminDashboard() {
     a.download = `selected_students_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
+  };
+
+  const exportAllSubmissionsExcel = () => {
+    if (filteredAndSortedSubmissions.length === 0) { toast.error('No submissions to export'); return; }
+    
+    // Build CSV with all submitted student inventory records
+    const headers = ['#', 'Student ID', 'Last Name', 'First Name', 'Middle Initial', 'Sex', 'Course', 'Year Level', 'Contact Number', 'Email', 'Status', 'Admin Remarks', 'Submitted Date'];
+    const rows = filteredAndSortedSubmissions.map((s, i) => {
+      const f = s.form_data || {};
+      return [
+        i + 1,
+        s.student_id || '',
+        f.lastName || '',
+        f.firstName || '',
+        f.middleInitial || '',
+        f.gender || f.sex || '',
+        s.course || '',
+        s.year_level || '',
+        s.contact_number || f.mobilePhone || '',
+        f.email || f.institutionalEmail || '',
+        s.submission_status || 'submitted',
+        s.admin_remarks || '',
+        new Date(s.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }),
+      ];
+    });
+
+    const escapeCSV = (val: any) => {
+      const str = String(val ?? '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
+      return str;
+    };
+    const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(escapeCSV).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `student_inventory_records_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    toast.success(`✅ Exported ${filteredAndSortedSubmissions.length} student inventory records`);
   };
 
   // Filter students
@@ -1826,14 +1883,14 @@ export default function AdminDashboard() {
                     Print Report
                   </button>
                   <button
-                    onClick={() => setViewMode('bulk-import')}
+                    onClick={exportAllSubmissionsExcel}
                     className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition font-medium text-sm shadow-md"
-                    title="Import students from Excel"
+                    title="Export all submissions as Excel/CSV"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                     </svg>
-                    Import Excel
+                    Export Excel
                   </button>
                 </>
               )}
