@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase, supabaseAdmin } from '../lib/supabase';
-import { cacheProfiles, cacheSubmissions, getCachedProfiles, getCachedSubmissions, getCacheAge } from '../lib/cache';
+import { cacheProfiles, cacheSubmissions, getCachedProfiles, getCachedSubmissions, getCacheAge, isLocalCacheValid, clearCache } from '../lib/cache';
 import { neonRead, markSupabaseUnhealthy, markSupabaseHealthy, isNeonConfigured } from '../lib/neon';
 import { useToastContext } from '../contexts/ToastContext';
 import { LoadingOverlay } from '../components/LoadingSpinner';
@@ -325,10 +325,31 @@ export default function AdminDashboard() {
     }
   };
 
-  const loadData = async () => {
+  const loadData = async (forceRefresh = false) => {
     try {
       const client = supabaseAdmin || supabase;
       const BATCH = 1000;
+
+      // ── Use localStorage cache if still valid and not forced ──
+      if (!forceRefresh && isLocalCacheValid()) {
+        const cachedProfiles = getCachedProfiles();
+        const cachedSubmissions = getCachedSubmissions();
+        if (cachedProfiles.length > 0 && cachedSubmissions.length > 0) {
+          const studentsWithPhotos = cachedProfiles.map((student: any) => {
+            const submission = cachedSubmissions.find((s: any) => s.student_id === student.student_id);
+            const profilePic = student.profile_picture || student.profile_picture_url || null;
+            return { ...student, photo_url: submission?.photo_url || profilePic };
+          });
+          setStudents(studentsWithPhotos);
+          setSubmissions(cachedSubmissions);
+          setUsers(cachedProfiles);
+          const sorted = [...cachedSubmissions].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+          setRecentSubmissions(sorted.slice(0, 5));
+          console.log(`📦 Loaded from cache (${getCacheAge()})`);
+          setInitialLoading(false);
+          return;
+        }
+      }
 
       // Fetch ALL profiles using pagination with cache fallback
       let allProfiles: any[] = [];
@@ -1416,6 +1437,17 @@ export default function AdminDashboard() {
 
             {/* Admin Avatar + Change Password */}
             <div className="flex items-center gap-2">
+              {/* Refresh data button */}
+              <button
+                onClick={() => { clearCache(); loadData(true); toast.success('🔄 Refreshing data...'); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-lg text-xs font-medium transition-all border border-blue-200"
+                title={`Refresh data (cached ${getCacheAge()})`}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
+              </button>
               <button
                 onClick={() => setShowAdminPasswordModal(true)}
                 className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 hover:bg-orange-200 text-orange-700 rounded-lg text-xs font-medium transition-all border border-orange-200"
