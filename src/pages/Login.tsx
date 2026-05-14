@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase, supabaseAdmin } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import type { UserRole } from '../store/authStore';
 
@@ -26,10 +26,7 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      const { data: profile } = await supabase.from('profiles').select('id').eq('email', email).maybeSingle();
-      if (profile?.id && supabaseAdmin) {
-        try { await supabaseAdmin.auth.admin.updateUserById(profile.id, { email_confirm: true }); } catch (_) {}
-      }
+      // Skip the email confirm update — too many DB writes
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
       if (signInError) {
         const n = attempts + 1; setAttempts(n);
@@ -46,7 +43,8 @@ export default function Login() {
             await supabase.from('profiles').update({ pending_password: null }).eq('id', data.user.id);
           } catch { await supabase.auth.signOut(); setError('An error occurred. Please try again.'); setLoading(false); return; }
         }
-        await supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', data.user.id);
+        // Update last_login in background — non-blocking
+        void supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', data.user.id);
         const role: UserRole = fp.role || (fp.is_admin ? 'admin' : 'student');
         const isAdmin = fp.is_admin || false;
         setUser(data.user); setIsAdmin(isAdmin); setRole(role);
