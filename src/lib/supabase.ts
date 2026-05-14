@@ -8,18 +8,27 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: false, // reduces unnecessary URL checks
+    detectSessionInUrl: false,
     storage: window.localStorage,
-    flowType: 'implicit', // simpler flow, fewer round trips
+    flowType: 'implicit',
   },
   global: {
     headers: {
-      'x-client-info': 'nbsc-gco', // identify requests
+      'x-client-info': 'nbsc-gco',
+    },
+    // Limit request timeout — prevents retry storm during maintenance
+    fetch: (url: RequestInfo | URL, options?: RequestInit) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      return fetch(url, {
+        ...options,
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout));
     },
   },
   realtime: {
     params: {
-      eventsPerSecond: 2, // throttle realtime events
+      eventsPerSecond: 2,
     },
   },
 });
