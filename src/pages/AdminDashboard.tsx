@@ -92,6 +92,26 @@ export default function AdminDashboard() {
     password: '',
     confirmPassword: ''
   });
+  // Smart local state updaters — avoid full DB reload after every action
+  const localDeleteSubmission = (id: string) => {
+    setSubmissions(prev => prev.filter(s => s.id !== id));
+  };
+  const localUpdateSubmission = (id: string, updates: any) => {
+    setSubmissions(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+  const localDeleteStudent = (id: string) => {
+    setStudents(prev => prev.filter(s => s.id !== id));
+    setUsers(prev => prev.filter(u => u.id !== id));
+  };
+  const localUpdateStudent = (id: string, updates: any) => {
+    setStudents(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, ...updates } : u));
+  };
+  const localAddStudent = (student: any) => {
+    setStudents(prev => [...prev, student]);
+    setUsers(prev => [...prev, student]);
+  };
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -281,7 +301,7 @@ export default function AdminDashboard() {
           await logAudit('delete', 'inventory_submission', 'bulk', `Bulk deleted ${selectedSubmissionIds.size} submissions`);
           toast.success(`${selectedSubmissionIds.size} submissions deleted`);
           setSelectedSubmissionIds(new Set());
-          loadData();
+          Array.from(selectedSubmissionIds).forEach(id => localDeleteSubmission(id));
         } catch (error: any) {
           toast.error('Bulk delete failed: ' + error.message);
         }
@@ -461,7 +481,7 @@ export default function AdminDashboard() {
         const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('student_id', studentId).maybeSingle();
         if (profile?.email) notifySubmissionStatus(profile.email, profile.full_name, status, remarks || undefined);
       }
-      loadData();
+      localUpdateSubmission(submissionId, { submission_status: status, admin_remarks: remarks });
     } catch (e: any) {
       toast.error('Failed to update status: ' + e.message);
     }
@@ -524,7 +544,7 @@ export default function AdminDashboard() {
           if (supabaseAdmin) await supabaseAdmin.auth.admin.deleteUser(id);
           await logAudit('delete', 'profile', id, `Deleted student profile: ${studentName}`);
           toast.success('Student deleted successfully');
-          loadData();
+          localDeleteStudent(id);
         } catch (error: any) {
           toast.error('Error deleting student: ' + (error.message || 'Unknown error'));
         } finally {
@@ -617,7 +637,7 @@ export default function AdminDashboard() {
           }
           await logAudit('delete', 'profile', userId, `Deleted user account: ${userName}`);
           toast.success(`${userName} deleted successfully`);
-          loadData();
+          localDeleteStudent(userId);
         } catch (error: any) {
           toast.error('Failed to delete user: ' + error.message);
         } finally {
@@ -682,7 +702,7 @@ export default function AdminDashboard() {
 
         toast.success('User created successfully! They can now log in.');
         setShowUserModal(false);
-        loadData();
+        localAddStudent({ ...userFormData, id: adminAuthData.user.id, role: 'student', is_admin: false, created_at: new Date().toISOString() });
       } catch (error: any) {
         toast.error('Failed to create user: ' + error.message);
       } finally {
@@ -727,7 +747,7 @@ export default function AdminDashboard() {
           toast.success('User updated successfully');
         }
         setShowUserModal(false);
-        loadData();
+        localUpdateStudent(selectedUser.id, { full_name: userFormData.full_name, student_id: userFormData.student_id, email: userFormData.email });
       } catch (error: any) {
         toast.error('Failed to update user: ' + error.message);
       } finally {
@@ -757,7 +777,7 @@ export default function AdminDashboard() {
       if (error) throw error;
       toast.success('Student updated successfully');
       setShowModal(false);
-      loadData();
+      localUpdateStudent(selectedSubmission?.user_id || selectedSubmission?.id, { full_name: selectedSubmission?.full_name });
     } catch (error: any) {
       toast.error('Error updating student: ' + (error.message || 'Unknown error'));
     }
@@ -781,7 +801,7 @@ export default function AdminDashboard() {
           }
           toast.success('Record deleted successfully');
           await logAudit('delete', 'inventory_submission', id, `Deleted submission for ${studentName}`);
-          loadData();
+          localDeleteSubmission(id);
         } catch (error: any) {
           toast.error('Error deleting record: ' + (error.message || 'Unknown error'));
         }
@@ -860,7 +880,10 @@ export default function AdminDashboard() {
       }
 
       setShowModal(false);
-      loadData();
+      // Refresh only the updated submission
+      const { data: updated } = await supabase.from('inventory_submissions').select('id,user_id,student_id,full_name,course,year_level,contact_number,submission_status,admin_remarks,photo_url,created_at,updated_at,reviewed_at').eq('id', selectedSubmission?.id).maybeSingle();
+      if (updated) localUpdateSubmission(updated.id, updated);
+      else loadData();
     } catch (error: any) {
       toast.error('Error saving record: ' + (error.message || 'Unknown error'));
     }
