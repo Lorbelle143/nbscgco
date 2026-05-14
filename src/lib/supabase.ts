@@ -8,8 +8,19 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
-    detectSessionInUrl: true,
+    detectSessionInUrl: false, // reduces unnecessary URL checks
     storage: window.localStorage,
+    flowType: 'implicit', // simpler flow, fewer round trips
+  },
+  global: {
+    headers: {
+      'x-client-info': 'nbsc-gco', // identify requests
+    },
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 2, // throttle realtime events
+    },
   },
 });
 
