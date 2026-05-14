@@ -2226,11 +2226,19 @@ export default function AdminDashboard() {
                   
                   {/* Info */}
                   <div className="p-4">
-                    <h3 className="font-bold text-gray-800 text-lg mb-1 truncate">
-                      {formData.lastName
-                        ? `${formData.lastName}, ${formData.firstName || ''}`
-                        : submission.full_name || 'Unknown'}
-                    </h3>
+                    {(() => {
+                      const lastName = formData.lastName || '';
+                      const firstName = formData.firstName || '';
+                      const mi = formData.middleInitial || '';
+                      const displayName = lastName
+                        ? `${lastName}, ${firstName}${mi ? ' ' + mi + '.' : ''}`
+                        : submission.full_name || 'Unknown';
+                      return (
+                        <h3 className="font-bold text-gray-800 text-lg mb-1 truncate" title={displayName}>
+                          {displayName}
+                        </h3>
+                      );
+                    })()}
                     <p className="text-xs text-gray-500 mb-3 font-medium">ID: {submission.student_id}</p>
                     
                     <div className="space-y-1 mb-3">
@@ -2364,9 +2372,14 @@ export default function AdminDashboard() {
                       </div>
                       <div className="col-span-3 min-w-0">
                         <p className="font-semibold text-gray-800 text-sm truncate">
-                          {formData.lastName
-                            ? `${formData.lastName}, ${formData.firstName || ''}`
-                            : submission.full_name || 'Unknown'}
+                          {(() => {
+                            const lastName = formData.lastName || '';
+                            const firstName = formData.firstName || '';
+                            const mi = formData.middleInitial || '';
+                            return lastName
+                              ? `${lastName}, ${firstName}${mi ? ' ' + mi + '.' : ''}`
+                              : submission.full_name || 'Unknown';
+                          })()}
                         </p>
                         <p className="text-xs text-gray-400">{submission.student_id}</p>
                         {submission.submission_status && submission.submission_status !== 'submitted' && (

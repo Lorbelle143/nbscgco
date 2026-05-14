@@ -473,7 +473,7 @@ export default function InventoryForm() {
       // Base data without user_id (used for updates to avoid UUID issues)
       const baseData = {
         student_id: resolvedFormData.idNo,
-        full_name: `${resolvedFormData.firstName} ${resolvedFormData.middleInitial} ${resolvedFormData.lastName}`,
+        full_name: `${resolvedFormData.lastName}, ${resolvedFormData.firstName}${resolvedFormData.middleInitial ? ' ' + resolvedFormData.middleInitial + '.' : ''}`.trim(),
         course: resolvedFormData.programYear,
         year_level: resolvedFormData.programYear.split(' ')[0] || '',
         contact_number: resolvedFormData.mobilePhone,
