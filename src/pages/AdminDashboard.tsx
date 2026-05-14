@@ -2227,7 +2227,9 @@ export default function AdminDashboard() {
                   {/* Info */}
                   <div className="p-4">
                     <h3 className="font-bold text-gray-800 text-lg mb-1 truncate">
-                      {formData.lastName || ''}, {formData.firstName || ''}
+                      {formData.lastName
+                        ? `${formData.lastName}, ${formData.firstName || ''}`
+                        : submission.full_name || 'Unknown'}
                     </h3>
                     <p className="text-xs text-gray-500 mb-3 font-medium">ID: {submission.student_id}</p>
                     
@@ -2361,7 +2363,11 @@ export default function AdminDashboard() {
                         </div>
                       </div>
                       <div className="col-span-3 min-w-0">
-                        <p className="font-semibold text-gray-800 text-sm truncate">{formData.lastName || ''}, {formData.firstName || ''}</p>
+                        <p className="font-semibold text-gray-800 text-sm truncate">
+                          {formData.lastName
+                            ? `${formData.lastName}, ${formData.firstName || ''}`
+                            : submission.full_name || 'Unknown'}
+                        </p>
                         <p className="text-xs text-gray-400">{submission.student_id}</p>
                         {submission.submission_status && submission.submission_status !== 'submitted' && (
                           <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${submission.submission_status === 'approved' ? 'bg-green-100 text-green-700' : submission.submission_status === 'needs-revision' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
