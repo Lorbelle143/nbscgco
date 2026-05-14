@@ -58,18 +58,6 @@ export default function StudentDashboard() {
     if (user) {
       Promise.all([loadProfile(), loadSubmissions(), loadMentalHealthAssessments()])
         .finally(() => setInitialLoading(false));
-
-      // Real-time: refresh when this student's submissions change
-      const channel = supabase
-        .channel('student-submissions-watch')
-        .on(
-          'postgres_changes',
-          { event: '*', schema: 'public', table: 'inventory_submissions', filter: `user_id=eq.${user.id}` },
-          () => { loadSubmissions(); }
-        )
-        .subscribe();
-
-      return () => { supabase.removeChannel(channel); };
     }
   }, [user]);
 

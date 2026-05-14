@@ -119,46 +119,6 @@ export default function AdminDashboard() {
     loadAdminProfile();
     loadResetRequests();
 
-    // Real-time: reload when a student submits or updates a form
-    const channel = supabase
-      .channel('admin-submissions-watch')
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'inventory_submissions' },
-        (payload) => {
-          // Only add the new record — no full reload
-          if (payload.new) {
-            setSubmissions(prev => {
-              const exists = prev.find(s => s.id === payload.new.id);
-              if (exists) return prev;
-              return [payload.new, ...prev];
-            });
-            setRecentSubmissions(prev => [payload.new, ...prev].slice(0, 5));
-            setUnreadCount(c => c + 1);
-            setHasUnreadNotifications(true);
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'inventory_submissions' },
-        (payload) => {
-          if (payload.new) {
-            setSubmissions(prev => prev.map(s => s.id === payload.new.id ? { ...s, ...payload.new } : s));
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'inventory_submissions' },
-        (payload) => {
-          if (payload.old?.id) {
-            setSubmissions(prev => prev.filter(s => s.id !== payload.old.id));
-          }
-        }
-      )
-      .subscribe();
-
     // Close notifications on outside click
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -168,7 +128,6 @@ export default function AdminDashboard() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      supabase.removeChannel(channel);
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
