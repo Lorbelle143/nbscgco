@@ -63,16 +63,12 @@ export const useAuthStore = create<AuthState>()(
       initializeAuth: async () => {
         const currentState = get();
 
-        // If we already have a persisted user, unblock the UI immediately
-        // then re-validate in the background
+        // If we already have a persisted user, unblock the UI immediately.
+        // Skip the background re-validation — it fires a getSession on every
+        // page load/refresh and contributes to auth request spikes.
+        // The onAuthStateChange listener will handle session expiry automatically.
         if (currentState.user) {
           set({ loading: false, sessionChecked: true });
-          // Background re-validation
-          supabase.auth.getSession().then(({ data: { session } }) => {
-            if (!session) {
-              set({ user: null, isAdmin: false });
-            }
-          });
           registerAuthListener(set);
           return;
         }
