@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
@@ -18,6 +18,8 @@ export default function InventoryForm() {
   const [error, setError] = useState('');
   const [submitStatus, setSubmitStatus] = useState('');
   const [currentSection, setCurrentSection] = useState(1);
+  // Prevent double-submit — once submitted, block any further submit calls
+  const submittingRef = useRef(false);
 
   const goToSection = (n: number) => {
     setCurrentSection(n);
@@ -308,40 +310,41 @@ export default function InventoryForm() {
   };
 
 
-  const [photoRatioWarning, setPhotoRatioWarning] = useState(false);
-
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Limit to 5MB
       if (file.size > 5 * 1024 * 1024) {
-        setError('Photo size must be less than 5MB');
+        setError('Photo size must be less than 5MB. Please compress or resize your photo before uploading.');
+        e.target.value = '';
         return;
       }
-      setPhotoFile(file);
-      setPhotoRatioWarning(false);
+      // Only allow image files
+      if (!file.type.startsWith('image/')) {
+        setError('Please upload an image file (JPG, PNG, etc.)');
+        e.target.value = '';
+        return;
+      }
+      // Rename file to student name format: Ganzan_Lorbelle_B.jpg
+      const ext = file.name.split('.').pop() || 'jpg';
+      const lastName = formData.lastName.trim().replace(/\s+/g, '_') || 'Student';
+      const firstName = formData.firstName.trim().replace(/\s+/g, '_') || '';
+      const mi = formData.middleInitial.trim().replace('.', '') || '';
+      const nameParts = [lastName, firstName, mi].filter(Boolean);
+      const newName = `${nameParts.join('_')}.${ext}`;
+      const renamedFile = new File([file], newName, { type: file.type });
+      setPhotoFile(renamedFile);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        setPhotoPreview(result);
-        // Check if photo is 1x1 ratio
-        const img = new Image();
-        img.onload = () => {
-          const ratio = img.width / img.height;
-          // Allow slight tolerance (0.85 to 1.15)
-          if (ratio < 0.85 || ratio > 1.15) {
-            setPhotoRatioWarning(true);
-          } else {
-            setPhotoRatioWarning(false);
-          }
-        };
-        img.src = result;
-      };
-      reader.readAsDataURL(file);
+      reader.onloadend = () => setPhotoPreview(reader.result as string);
+      reader.readAsDataURL(renamedFile);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Hard block — prevent double submit from rapid clicks
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError('');
     setFieldErrors({});
 
@@ -527,7 +530,13 @@ export default function InventoryForm() {
           .select()
           .single();
 
-        if (dbError) throw new Error('Database error: ' + dbError.message + ' (code: ' + dbError.code + ')');
+        if (dbError) {
+          // Unique constraint violation — already submitted
+          if (dbError.code === '23505') {
+            throw new Error('You have already submitted your inventory form. Only one submission is allowed. Please edit your existing submission instead.');
+          }
+          throw new Error('Database error: ' + dbError.message + ' (code: ' + dbError.code + ')');
+        }
 
         // Sync insert to Neon in background
         if (inserted) syncToNeon(() => neonWrite.upsertSubmission(inserted));
@@ -544,6 +553,7 @@ export default function InventoryForm() {
         navigate('/dashboard');
       }
     } catch (err: any) {
+      submittingRef.current = false; // reset on error so user can retry
       setError(err.message || 'Failed to submit form');
     } finally {
       setLoading(false);
@@ -686,47 +696,29 @@ export default function InventoryForm() {
                 </div>
                 
                 {/* Photo Upload */}
-                <div className={`border-2 border-dashed rounded-lg p-6 transition-colors ${photoRatioWarning ? 'border-red-400 bg-red-50' : photoPreview ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    1 x 1 Photo <span className="text-red-500">*</span>
+                    Student Photo (1x1) <span className="text-red-500">*</span>
                   </label>
-                  <p className="text-xs text-gray-500 mb-3">
-                    Required. Upload a clear 1x1 (square) photo. Max 5MB.
+                  <p className="text-xs text-gray-500 mb-1">
+                    Required. Please upload a clear 1x1 photo.
+                  </p>
+                  <p className="text-xs text-amber-600 font-medium mb-3">
+                    ⚠️ Maximum file size: 5MB. Compress your photo if needed.
                   </p>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
                     onChange={handlePhotoChange}
                     className="block w-full text-sm"
                   />
                   {photoPreview && (
-                    <div className="mt-4 flex items-start gap-4">
-                      <div className={`relative border-4 rounded-lg overflow-hidden ${photoRatioWarning ? 'border-red-500' : 'border-green-500'}`}>
-                        <img
-                          src={photoPreview}
-                          alt="Preview"
-                          className="w-24 h-24 object-cover"
-                        />
-                      </div>
-                      <div>
-                        {photoRatioWarning ? (
-                          <div className="flex items-start gap-2 p-3 bg-red-100 border border-red-300 rounded-lg">
-                            <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                            </svg>
-                            <div>
-                              <p className="text-sm font-bold text-red-700">Photo is not 1x1!</p>
-                              <p className="text-xs text-red-600 mt-0.5">Please upload a square (1x1) photo. Your current photo appears to be rectangular.</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 p-3 bg-green-100 border border-green-300 rounded-lg">
-                            <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <p className="text-sm font-bold text-green-700">Photo looks good! ✅</p>
-                          </div>
-                        )}
+                    <div className="mt-4 flex items-center gap-3">
+                      <img src={photoPreview} alt="Preview" className="w-24 h-24 object-cover rounded-lg shadow-md border border-gray-200" />
+                      <div className="text-xs text-gray-500">
+                        <p className="font-medium text-gray-700">Preview</p>
+                        {photoFile && <p className="mt-1 text-green-600">✓ {photoFile.name}</p>}
+                        {photoFile && <p className="text-gray-400">{(photoFile.size / 1024).toFixed(0)} KB</p>}
                       </div>
                     </div>
                   )}

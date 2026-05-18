@@ -1002,13 +1002,30 @@ export default function AdminDashboard() {
     return matchesSearch && matchesCourse;
   });
 
+  // Helper: extract last name from full_name for sorting
+  // Tries form_data.lastName first, then takes the last word of full_name
+  const getLastName = (student: any): string => {
+    const sub = submissions.find(s => s.student_id === student.student_id);
+    if (sub?.form_data?.lastName) return sub.form_data.lastName.toLowerCase();
+    const parts = (student.full_name || '').trim().split(' ');
+    return (parts[parts.length - 1] || '').toLowerCase();
+  };
+
+  // Helper: format name as "Last, First MI." using form_data if available
+  const formatStudentName = (student: any): string => {
+    const sub = submissions.find(s => s.student_id === student.student_id);
+    if (sub?.form_data?.lastName && sub?.form_data?.firstName) {
+      const mi = sub.form_data.middleInitial ? ` ${sub.form_data.middleInitial.replace('.', '')}.` : '';
+      return `${sub.form_data.lastName}, ${sub.form_data.firstName}${mi}`;
+    }
+    return student.full_name || '';
+  };
+
   const sortedStudents = [...filteredStudents]
     .filter(s => !showNotSubmitted || !submissions.some(sub => sub.student_id === s.student_id))
     .sort((a, b) => {
       if (sortBy === 'lastName') {
-        const lastNameA = (a.full_name || '').split(' ')[0].toLowerCase();
-        const lastNameB = (b.full_name || '').split(' ')[0].toLowerCase();
-        return lastNameA.localeCompare(lastNameB);
+        return getLastName(a).localeCompare(getLastName(b));
       } else {
         return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
       }
@@ -1031,9 +1048,13 @@ export default function AdminDashboard() {
 
   const filteredAndSortedSubmissions = [...filteredSubmissions].sort((a, b) => {
     if (sortBy === 'lastName') {
-      const lastNameA = (a.form_data?.lastName || a.full_name.split(' ')[0] || '').toLowerCase();
-      const lastNameB = (b.form_data?.lastName || b.full_name.split(' ')[0] || '').toLowerCase();
-      return lastNameA.localeCompare(lastNameB);
+      // Use form_data.lastName if available, otherwise take last word of full_name
+      const getSubLastName = (s: any) => {
+        if (s.form_data?.lastName) return s.form_data.lastName.toLowerCase();
+        const parts = (s.full_name || '').trim().split(' ');
+        return (parts[parts.length - 1] || '').toLowerCase();
+      };
+      return getSubLastName(a).localeCompare(getSubLastName(b));
     } else {
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     }
@@ -2001,7 +2022,7 @@ export default function AdminDashboard() {
                         )}
                       </div>
                       <div className="p-5">
-                        <h3 className="font-bold text-gray-800 text-lg mb-2 truncate">{student.full_name}</h3>
+                        <h3 className="font-bold text-gray-800 text-lg mb-2 truncate">{formatStudentName(student)}</h3>
                         <div className="space-y-2 mb-4">
                           <div className="flex items-center gap-2 text-sm text-gray-600">
                             <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2078,7 +2099,7 @@ export default function AdminDashboard() {
                             }
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-gray-800 text-sm truncate">{student.full_name}</p>
+                            <p className="font-semibold text-gray-800 text-sm truncate">{formatStudentName(student)}</p>
                             <p className="text-xs text-gray-400">{student.student_id}</p>
                           </div>
                         </div>
