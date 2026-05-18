@@ -7,7 +7,7 @@
 const CACHE_KEY_PROFILES = 'nbsc_cache_profiles';
 const CACHE_KEY_SUBMISSIONS = 'nbsc_cache_submissions';
 const CACHE_KEY_TS = 'nbsc_cache_timestamp';
-const CACHE_MAX_AGE = 30 * 60 * 1000; // 30 minutes
+const CACHE_MAX_AGE = 2 * 60 * 60 * 1000; // 2 hours — reduces Supabase load on free tier
 
 interface CacheStore {
   profiles: any[];

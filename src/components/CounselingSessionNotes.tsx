@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { logAudit } from '../utils/auditLog';
@@ -11,11 +11,16 @@ const SESSION_STATUS_COLOR: Record<string, string> = {
   scheduled:  'bg-blue-100 text-blue-700 border-blue-300',
 };
 
+// Session-level cache
+let _cachedCounselingStudents: any[] | null = null;
+let _cachedCounselingSessions: any[] | null = null;
+
 export default function CounselingSessionNotes() {
   const toast = useToastContext();
-  const [students, setStudents] = useState<any[]>([]);
-  const [sessions, setSessions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [students, setStudents] = useState<any[]>(_cachedCounselingStudents || []);
+  const [sessions, setSessions] = useState<any[]>(_cachedCounselingSessions || []);
+  const [loading, setLoading] = useState(_cachedCounselingStudents === null);
+  const fetchedRef = useRef(_cachedCounselingStudents !== null);
   const [search, setSearch] = useState('');
   const [sessionSearch, setSessionSearch] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'sessions' | 'risk'>('name');
@@ -35,7 +40,11 @@ export default function CounselingSessionNotes() {
     session_status: 'completed',
   });
 
-  useEffect(() => { loadStudents(); loadSessions(); }, []);
+  useEffect(() => { 
+    if (fetchedRef.current) return;
+    loadStudents(); 
+    loadSessions(); 
+  }, []);
 
   const loadStudents = async () => {
     const { data } = await supabase
@@ -50,13 +59,17 @@ export default function CounselingSessionNotes() {
     const { data: consents } = await supabase.from('consent_records').select('student_id, status, signed_at').in('student_id', ids);
     const consentMap: Record<string, any> = {};
     (consents || []).forEach((c: any) => { consentMap[c.student_id] = c; });
-    setStudents(unique.map((s: any) => ({ ...s, consent: consentMap[s.student_id] || null })));
+    const result = unique.map((s: any) => ({ ...s, consent: consentMap[s.student_id] || null }));
+    _cachedCounselingStudents = result;
+    setStudents(result);
   };
 
   const loadSessions = async () => {
     setLoading(true);
     const { data } = await supabase.from('counseling_sessions').select('*').order('session_date', { ascending: false });
-    setSessions(data || []);
+    _cachedCounselingSessions = data || [];
+    fetchedRef.current = true;
+    setSessions(_cachedCounselingSessions);
     setLoading(false);
   };
 

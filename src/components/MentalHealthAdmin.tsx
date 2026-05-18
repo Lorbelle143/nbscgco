@@ -1,12 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { exportMentalHealthPDF, exportStudentMentalHealthPDF, exportMentalHealthCSV } from '../utils/pdfUtils';
 import { logAudit } from '../utils/auditLog';
 
+// Session-level cache — survives tab switches, cleared on manual refresh
+let _cachedAssessments: any[] | null = null;
+
 export default function MentalHealthAdmin() {
-  const [assessments, setAssessments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [assessments, setAssessments] = useState<any[]>(_cachedAssessments || []);
+  const [loading, setLoading] = useState(_cachedAssessments === null);
+  const fetchedRef = useRef(_cachedAssessments !== null);
   const [filter, setFilter] = useState<'all' | 'need-support' | 'immediate-support'>('all');
   const [showModal, setShowModal] = useState(false);
   const [modalMode, setModalMode] = useState<'view' | 'edit'>('view');
@@ -21,6 +25,7 @@ export default function MentalHealthAdmin() {
   const toast = useToastContext();
 
   useEffect(() => {
+    if (fetchedRef.current) return; // already loaded this session
     loadAssessments();
   }, []);
 
@@ -32,7 +37,9 @@ export default function MentalHealthAdmin() {
         .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
-      setAssessments(data || []);
+      _cachedAssessments = data || [];
+      fetchedRef.current = true;
+      setAssessments(_cachedAssessments);
     } catch (error: any) {
       toast.error('Failed to load assessments: ' + error.message);
     } finally {

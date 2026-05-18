@@ -115,9 +115,13 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Stagger initial loads to avoid hammering Supabase with 3 simultaneous queries on mount.
+    // loadData() is the heaviest — run it first, then load the lighter ones after a short delay.
     loadData();
-    loadAdminProfile();
-    loadResetRequests();
+    const deferredLoads = setTimeout(() => {
+      loadAdminProfile();
+      loadResetRequests();
+    }, 1500);
 
     // Close notifications on outside click
     const handleClickOutside = (e: MouseEvent) => {
@@ -128,6 +132,7 @@ export default function AdminDashboard() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
+      clearTimeout(deferredLoads);
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
@@ -293,64 +298,30 @@ export default function AdminDashboard() {
       if (!forceRefresh && isLocalCacheValid()) {
         const cachedProfiles = getCachedProfiles();
         const cachedSubmissions = getCachedSubmissions();
-        if (cachedProfiles.length > 0 && cachedSubmissions.length > 0) {
-          const studentsWithPhotos = cachedProfiles.map((student: any) => {
-            const submission = cachedSubmissions.find((s: any) => s.student_id === student.student_id);
-            const profilePic = student.profile_picture || student.profile_picture_url || null;
-            return { ...student, photo_url: submission?.photo_url || profilePic };
-          });
-          setStudents(studentsWithPhotos);
+        if (cachedSubmissions.length > 0) {
+          if (cachedProfiles.length > 0) {
+            const studentsWithPhotos = cachedProfiles.map((student: any) => {
+              const submission = cachedSubmissions.find((s: any) => s.student_id === student.student_id);
+              const profilePic = student.profile_picture || student.profile_picture_url || null;
+              return { ...student, photo_url: submission?.photo_url || profilePic };
+            });
+            setStudents(studentsWithPhotos);
+            setUsers(cachedProfiles);
+          }
           setSubmissions(cachedSubmissions);
-          setUsers(cachedProfiles);
           const sorted = [...cachedSubmissions].sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
           setRecentSubmissions(sorted.slice(0, 5));
+          const lastSeen = localStorage.getItem('admin_notif_last_seen');
+          const newOnes = lastSeen ? sorted.filter((s: any) => new Date(s.created_at).getTime() > new Date(lastSeen).getTime()) : sorted;
+          setUnreadCount(newOnes.length);
+          setHasUnreadNotifications(newOnes.length > 0);
           console.log(`📦 Loaded from cache (${getCacheAge()})`);
           setInitialLoading(false);
           return;
         }
       }
 
-      // Fetch ALL profiles using pagination with cache fallback
-      let allProfiles: any[] = [];
-      let profilesFrom = 0;
-      let profilesFromCache = false;
-
-      try {
-        while (true) {
-          const { data, error } = await client
-            .from('profiles')
-            .select('id, email, full_name, student_id, is_admin, role, created_at, last_login, profile_picture, profile_picture_url')
-            .or('role.eq.student,role.is.null,is_admin.eq.false')
-            .order('full_name', { ascending: true })
-            .range(profilesFrom, profilesFrom + BATCH - 1);
-          if (error) throw error;
-          if (!data || data.length === 0) break;
-          allProfiles = [...allProfiles, ...data];
-          if (data.length < BATCH) break;
-          profilesFrom += BATCH;
-        }
-        markSupabaseHealthy();
-        cacheProfiles(allProfiles);
-      } catch (err: any) {
-        markSupabaseUnhealthy();
-        // Try Neon first, then cache
-        if (isNeonConfigured()) {
-          try {
-            console.warn('🔄 Profiles: falling back to Neon');
-            allProfiles = await neonRead.getProfiles();
-            profilesFromCache = true;
-          } catch {
-            allProfiles = getCachedProfiles();
-            profilesFromCache = true;
-          }
-        } else {
-          allProfiles = getCachedProfiles();
-          profilesFromCache = true;
-        }
-        if (allProfiles.length === 0) throw new Error('No profile data available');
-      }
-
-      // Fetch ALL submissions using pagination with cache fallback
+      // ── Fetch ONLY submissions on initial load (profiles are lazy-loaded when Students tab opens) ──
       let allSubmissions: any[] = [];
       let submissionsFrom = 0;
       let submissionsFromCache = false;
@@ -372,7 +343,6 @@ export default function AdminDashboard() {
         cacheSubmissions(allSubmissions);
       } catch (err: any) {
         markSupabaseUnhealthy();
-        // Try Neon first, then cache
         if (isNeonConfigured()) {
           try {
             console.warn('🔄 Submissions: falling back to Neon');
@@ -388,26 +358,13 @@ export default function AdminDashboard() {
         }
       }
 
-      // Show warning banner if serving from cache
-      if (profilesFromCache || submissionsFromCache) {
-        toast.error(`⚠️ Supabase is currently unavailable. Showing cached data from ${getCacheAge()}. Read-only mode.`);
+      if (submissionsFromCache) {
+        toast.error(`⚠️ Supabase unavailable. Showing cached data from ${getCacheAge()}. Read-only mode.`);
       }
 
-      const studentsData = allProfiles;
-      const submissionsData = allSubmissions;
+      setSubmissions(allSubmissions);
 
-      const studentsWithPhotos = studentsData.map(student => {
-        const submission = submissionsData.find(s => s.student_id === student.student_id);
-        // Prefer submission photo, fall back to profile picture (handles both column name variants)
-        const profilePic = student.profile_picture || student.profile_picture_url || null;
-        return { ...student, photo_url: submission?.photo_url || profilePic };
-      });
-
-      setStudents(studentsWithPhotos);
-      setSubmissions(submissionsData);
-      setUsers(studentsData);
-
-      const sorted = [...submissionsData].sort(
+      const sorted = [...allSubmissions].sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
       setRecentSubmissions(sorted.slice(0, 5));
@@ -421,6 +378,66 @@ export default function AdminDashboard() {
       toast.error('Failed to load data: ' + error.message);
     } finally {
       setInitialLoading(false);
+    }
+  };
+
+  // ── Lazy-load profiles — only called when Students or Users tab is opened ──
+  const loadProfiles = async (forceRefresh = false) => {
+    if (!forceRefresh && students.length > 0) return; // already loaded
+    try {
+      const client = supabaseAdmin || supabase;
+      const BATCH = 1000;
+      let allProfiles: any[] = [];
+      let profilesFrom = 0;
+
+      // Check cache first
+      if (!forceRefresh && isLocalCacheValid()) {
+        const cached = getCachedProfiles();
+        if (cached.length > 0) {
+          const studentsWithPhotos = cached.map((student: any) => {
+            const submission = submissions.find((s: any) => s.student_id === student.student_id);
+            return { ...student, photo_url: submission?.photo_url || student.profile_picture || student.profile_picture_url || null };
+          });
+          setStudents(studentsWithPhotos);
+          setUsers(cached);
+          return;
+        }
+      }
+
+      try {
+        while (true) {
+          const { data, error } = await client
+            .from('profiles')
+            .select('id, email, full_name, student_id, is_admin, role, created_at, last_login, profile_picture, profile_picture_url')
+            .or('role.eq.student,role.is.null,is_admin.eq.false')
+            .order('full_name', { ascending: true })
+            .range(profilesFrom, profilesFrom + BATCH - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+          allProfiles = [...allProfiles, ...data];
+          if (data.length < BATCH) break;
+          profilesFrom += BATCH;
+        }
+        markSupabaseHealthy();
+        cacheProfiles(allProfiles);
+      } catch (err: any) {
+        markSupabaseUnhealthy();
+        if (isNeonConfigured()) {
+          try { allProfiles = await neonRead.getProfiles(); } catch { allProfiles = getCachedProfiles(); }
+        } else {
+          allProfiles = getCachedProfiles();
+        }
+        if (allProfiles.length === 0) { toast.error('Could not load student profiles'); return; }
+      }
+
+      const studentsWithPhotos = allProfiles.map(student => {
+        const submission = submissions.find(s => s.student_id === student.student_id);
+        return { ...student, photo_url: submission?.photo_url || student.profile_picture || student.profile_picture_url || null };
+      });
+      setStudents(studentsWithPhotos);
+      setUsers(allProfiles);
+    } catch (err: any) {
+      toast.error('Failed to load profiles: ' + err.message);
     }
   };
 
@@ -1096,7 +1113,7 @@ export default function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setViewMode('students')}
+            onClick={() => { setViewMode('students'); loadProfiles(); }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
               viewMode === 'students' 
                 ? 'bg-orange-600 text-white' 
@@ -1210,7 +1227,7 @@ export default function AdminDashboard() {
           </button>
 
           <button
-            onClick={() => setViewMode('users')}
+            onClick={() => { setViewMode('users'); loadProfiles(); }}
             className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${viewMode === 'users' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
           >
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
