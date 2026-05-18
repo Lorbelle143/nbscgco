@@ -34,7 +34,7 @@ export default function Login() {
         setError('Incorrect email or password. Please try again.'); setLoading(false); return;
       }
       if (data.user) {
-        const { data: fp, error: fe } = await supabase.from('profiles').select('*').eq('id', data.user.id).maybeSingle();
+        const { data: fp, error: fe } = await supabase.from('profiles').select('id, email, full_name, student_id, is_admin, role, pending_password, profile_picture, profile_picture_url, last_login').eq('id', data.user.id).maybeSingle();
         if (fe || !fp) { setError('Account setup incomplete. Please contact the administrator to set up your profile.'); await supabase.auth.signOut(); setLoading(false); return; }
         if (fp.pending_password) {
           try {

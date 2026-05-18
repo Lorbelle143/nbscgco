@@ -99,7 +99,7 @@ export default function StudentDashboard() {
       // First try by user_id (correct path)
       const { data, error } = await supabase
         .from('inventory_submissions')
-        .select('*')
+        .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, created_at, updated_at')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
@@ -116,7 +116,7 @@ export default function StudentDashboard() {
         if (profileData?.student_id) {
           const { data: byStudentId } = await supabase
             .from('inventory_submissions')
-            .select('*')
+            .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, created_at, updated_at')
             .eq('student_id', profileData.student_id)
             .order('created_at', { ascending: false });
 
