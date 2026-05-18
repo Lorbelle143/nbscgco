@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
@@ -18,6 +18,8 @@ export default function InventoryForm() {
   const [error, setError] = useState('');
   const [submitStatus, setSubmitStatus] = useState('');
   const [currentSection, setCurrentSection] = useState(1);
+  // Prevent double-submit — once submitted, block any further submit calls
+  const submittingRef = useRef(false);
 
   const goToSection = (n: number) => {
     setCurrentSection(n);
@@ -324,6 +326,9 @@ export default function InventoryForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // Hard block — prevent double submit from rapid clicks
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setError('');
     setFieldErrors({});
 
@@ -509,7 +514,13 @@ export default function InventoryForm() {
           .select()
           .single();
 
-        if (dbError) throw new Error('Database error: ' + dbError.message + ' (code: ' + dbError.code + ')');
+        if (dbError) {
+          // Unique constraint violation — already submitted
+          if (dbError.code === '23505') {
+            throw new Error('You have already submitted your inventory form. Only one submission is allowed. Please edit your existing submission instead.');
+          }
+          throw new Error('Database error: ' + dbError.message + ' (code: ' + dbError.code + ')');
+        }
 
         // Sync insert to Neon in background
         if (inserted) syncToNeon(() => neonWrite.upsertSubmission(inserted));
@@ -526,6 +537,7 @@ export default function InventoryForm() {
         navigate('/dashboard');
       }
     } catch (err: any) {
+      submittingRef.current = false; // reset on error so user can retry
       setError(err.message || 'Failed to submit form');
     } finally {
       setLoading(false);
