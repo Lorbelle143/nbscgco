@@ -143,14 +143,11 @@ function registerAuthListener(set: (partial: Partial<AuthState>) => void) {
     } else if (event === 'SIGNED_OUT') {
       set({ user: null, isAdmin: false, role: 'student', loading: false, sessionChecked: true });
     } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('is_admin, role')
-        .eq('id', session.user.id)
-        .single();
-      const role: UserRole = profile?.role || (profile?.is_admin ? 'admin' : 'student');
-      set({ user: session.user, isAdmin: profile?.is_admin || false, role });
+      // Don't re-query the DB on token refresh — role/isAdmin don't change mid-session.
+      // Just update the user object to keep the JWT fresh.
+      set({ user: session.user });
     } else if (event === 'USER_UPDATED' && session?.user) {
+      // Only re-fetch profile on explicit user update, not on every token refresh.
       const { data: profile } = await supabase
         .from('profiles')
         .select('is_admin, role')

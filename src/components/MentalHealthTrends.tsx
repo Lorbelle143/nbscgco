@@ -1,17 +1,27 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
+// Session-level cache
+let _cachedTrendsData: any[] | null = null;
+
 export default function MentalHealthTrends() {
-  const [data, setData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<any[]>(_cachedTrendsData || []);
+  const [loading, setLoading] = useState(_cachedTrendsData === null);
+  const fetchedRef = useRef(_cachedTrendsData !== null);
   const [view, setView] = useState<'monthly' | 'risk' | 'scores' | 'counseling'>('monthly');
 
   useEffect(() => {
+    if (fetchedRef.current) return;
     supabase
       .from('mental_health_assessments')
       .select('*')
       .order('created_at', { ascending: true })
-      .then(({ data: d }) => { setData(d || []); setLoading(false); });
+      .then(({ data: d }) => { 
+        _cachedTrendsData = d || [];
+        fetchedRef.current = true;
+        setData(_cachedTrendsData); 
+        setLoading(false); 
+      });
   }, []);
 
   const trends = useMemo(() => {

@@ -56,7 +56,11 @@ export default function StudentDashboard() {
 
   useEffect(() => {
     if (user) {
-      Promise.all([loadProfile(), loadSubmissions(), loadMentalHealthAssessments()])
+      // Run sequentially instead of all-at-once to avoid 3 simultaneous DB connections per student login.
+      // Profile is needed first anyway (student_id fallback in loadSubmissions depends on it).
+      loadProfile()
+        .then(() => loadSubmissions())
+        .then(() => loadMentalHealthAssessments())
         .finally(() => setInitialLoading(false));
     }
   }, [user]);

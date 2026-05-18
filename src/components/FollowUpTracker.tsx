@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { supabase, supabaseAdmin } from '../lib/supabase';
+import { useEffect, useState, useRef } from 'react';
+import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { logAudit } from '../utils/auditLog';
 
@@ -19,10 +19,14 @@ const STATUS_MESSAGES: Record<string, string> = {
   pending:      'Your follow-up status has been updated.',
 };
 
+// Session-level cache
+let _cachedFollowUps: any[] | null = null;
+
 export default function FollowUpTracker() {
   const toast = useToastContext();
-  const [assessments, setAssessments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [assessments, setAssessments] = useState<any[]>(_cachedFollowUps || []);
+  const [loading, setLoading] = useState(_cachedFollowUps === null);
+  const fetchedRef = useRef(_cachedFollowUps !== null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'scheduled' | 'in-progress' | 'completed'>('all');
   const [riskFilter, setRiskFilter] = useState<'all' | 'need-support' | 'immediate-support'>('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -35,7 +39,10 @@ export default function FollowUpTracker() {
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { 
+    if (fetchedRef.current) return;
+    load(); 
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -54,7 +61,10 @@ export default function FollowUpTracker() {
         .in('student_id', ids);
       const consentMap: Record<string, string> = {};
       (consents || []).forEach((c: any) => { consentMap[c.student_id] = c.status; });
-      setAssessments(list.map((a: any) => ({ ...a, consent_status: consentMap[a.student_id] || null })));
+      const result = list.map((a: any) => ({ ...a, consent_status: consentMap[a.student_id] || null }));
+      _cachedFollowUps = result;
+      fetchedRef.current = true;
+      setAssessments(result);
     } catch {
       toast.error('Failed to load follow-up data');
     } finally {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 import { logAudit } from '../utils/auditLog';
@@ -21,10 +21,14 @@ const QUESTION_LABELS: Record<string, string> = {
 
 const SCORE_LABELS = ['Never', 'Rarely', 'Sometimes', 'Often', 'Always'];
 
+// Session-level cache
+let _cachedConsentRecords: any[] | null = null;
+
 export default function ConsentTracker() {
   const toast = useToastContext();
-  const [records, setRecords] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [records, setRecords] = useState<any[]>(_cachedConsentRecords || []);
+  const [loading, setLoading] = useState(_cachedConsentRecords === null);
+  const fetchedRef = useRef(_cachedConsentRecords !== null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'signed' | 'pending' | 'declined'>('all');
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'status' | 'risk'>('name');
@@ -37,7 +41,10 @@ export default function ConsentTracker() {
   const [loadingAssessment, setLoadingAssessment] = useState(false);
   const PAGE_SIZE = 10;
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { 
+    if (fetchedRef.current) return;
+    load(); 
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -58,7 +65,10 @@ export default function ConsentTracker() {
     const consentMap: Record<string, any> = {};
     (consents || []).forEach((c: any) => { consentMap[c.student_id] = c; });
 
-    setRecords(unique.map(s => ({ ...s, consent: consentMap[s.student_id] || null })));
+    const result = unique.map(s => ({ ...s, consent: consentMap[s.student_id] || null }));
+    _cachedConsentRecords = result;
+    fetchedRef.current = true;
+    setRecords(result);
     setLoading(false);
   };
 

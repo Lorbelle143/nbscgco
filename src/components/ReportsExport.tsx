@@ -1,16 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
 import { useToastContext } from '../contexts/ToastContext';
 
+// Session-level cache — 4 parallel queries, only run once per session
+let _cachedReportStats: any | null = null;
+
 export default function ReportsExport() {
   const toast = useToastContext();
-  const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<any>(null);
+  const [loading, setLoading] = useState(_cachedReportStats === null);
+  const [stats, setStats] = useState<any>(_cachedReportStats);
   const [semesterFilter, setSemesterFilter] = useState('all');
   const [yearFilter, setYearFilter] = useState(new Date().getFullYear().toString());
+  const fetchedRef = useRef(_cachedReportStats !== null);
 
-  useEffect(() => { loadStats(); }, [semesterFilter, yearFilter]);
+  useEffect(() => { 
+    if (fetchedRef.current) return;
+    loadStats(); 
+  }, []);
 
   const loadStats = async () => {
     setLoading(true);
@@ -27,7 +34,7 @@ export default function ReportsExport() {
       const c = consents || [];
       const st = students || [];
 
-      setStats({
+      const result = {
         totalStudents: st.length,
         totalAssessments: a.length,
         doingWell: a.filter(x => x.risk_level === 'doing-well').length,
@@ -44,7 +51,10 @@ export default function ReportsExport() {
         assessments: a,
         sessions: s,
         students: st,
-      });
+      };
+      _cachedReportStats = result;
+      fetchedRef.current = true;
+      setStats(result);
     } catch (e: any) {
       toast.error('Failed to load stats');
     } finally {

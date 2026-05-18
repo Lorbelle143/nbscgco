@@ -19,16 +19,23 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     // Limit request timeout — prevents retry storm during maintenance
     fetch: (url: RequestInfo | URL, options?: RequestInit) => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
       return fetch(url, {
         ...options,
         signal: controller.signal,
       }).finally(() => clearTimeout(timeout));
     },
   },
+  db: {
+    // Use the connection pooler (port 6543) instead of direct connection (port 5432).
+    // This is the single biggest fix for "too many connections" on Supabase free/pro tier.
+    // In your Supabase dashboard: Settings → Database → Connection string → select "Transaction" mode
+    // and update VITE_SUPABASE_URL to use the pooler URL if you haven't already.
+    schema: 'public',
+  },
   realtime: {
     params: {
-      eventsPerSecond: 2,
+      eventsPerSecond: 1, // reduce from 2 → 1 to lower realtime pressure
     },
   },
 });
