@@ -22,17 +22,6 @@ export default function StudentNotifications({ userId, onUnreadCountChange }: Pr
 
   useEffect(() => {
     load();
-    // Real-time subscription
-    const channel = supabase
-      .channel('student-notifications')
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'student_notifications',
-        filter: `user_id=eq.${userId}`,
-      }, () => load())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
   }, [userId]);
 
   const load = async () => {
