@@ -313,14 +313,30 @@ export default function InventoryForm() {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Photo size must be less than 5MB');
+      // Limit to 2MB
+      if (file.size > 2 * 1024 * 1024) {
+        setError('Photo size must be less than 2MB. Please compress or resize your photo before uploading.');
+        e.target.value = '';
         return;
       }
-      setPhotoFile(file);
+      // Only allow image files
+      if (!file.type.startsWith('image/')) {
+        setError('Please upload an image file (JPG, PNG, etc.)');
+        e.target.value = '';
+        return;
+      }
+      // Rename file to student name format: Ganzan_Lorbelle_B.jpg
+      const ext = file.name.split('.').pop() || 'jpg';
+      const lastName = formData.lastName.trim().replace(/\s+/g, '_') || 'Student';
+      const firstName = formData.firstName.trim().replace(/\s+/g, '_') || '';
+      const mi = formData.middleInitial.trim().replace('.', '') || '';
+      const nameParts = [lastName, firstName, mi].filter(Boolean);
+      const newName = `${nameParts.join('_')}.${ext}`;
+      const renamedFile = new File([file], newName, { type: file.type });
+      setPhotoFile(renamedFile);
       const reader = new FileReader();
       reader.onloadend = () => setPhotoPreview(reader.result as string);
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(renamedFile);
     }
   };
 
@@ -684,16 +700,28 @@ export default function InventoryForm() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Student Photo (1x1) <span className="text-red-500">*</span>
                   </label>
-                  <p className="text-xs text-gray-500 mb-3">
+                  <p className="text-xs text-gray-500 mb-1">
                     Required. Please upload a clear 1x1 photo.
+                  </p>
+                  <p className="text-xs text-amber-600 font-medium mb-3">
+                    ⚠️ Maximum file size: 2MB. Compress your photo if needed.
                   </p>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/jpg,image/png,image/webp"
                     onChange={handlePhotoChange}
                     className="block w-full text-sm"
                   />
-                  {photoPreview && <img src={photoPreview} alt="Preview" className="mt-4 w-24 h-24 object-cover rounded-lg shadow-md" />}
+                  {photoPreview && (
+                    <div className="mt-4 flex items-center gap-3">
+                      <img src={photoPreview} alt="Preview" className="w-24 h-24 object-cover rounded-lg shadow-md border border-gray-200" />
+                      <div className="text-xs text-gray-500">
+                        <p className="font-medium text-gray-700">Preview</p>
+                        {photoFile && <p className="mt-1 text-green-600">✓ {photoFile.name}</p>}
+                        {photoFile && <p className="text-gray-400">{(photoFile.size / 1024).toFixed(0)} KB</p>}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
 
