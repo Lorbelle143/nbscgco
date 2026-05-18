@@ -186,7 +186,7 @@ export default function Login() {
           {/* Heading */}
           <div className="mb-8 a0">
             <h2 className="text-3xl font-black text-white mb-2">Welcome back</h2>
-            <p className="text-white/60 text-base">Sign in to your student account to continue</p>
+            <p className="text-white/60 text-base">Sign in with your institutional email to continue</p>
           </div>
 
           {/* Error */}
@@ -210,7 +210,7 @@ export default function Login() {
                   </svg>
                 </div>
                 <input type="email" value={email} onChange={e=>setEmail(e.target.value)}
-                  className="inp" placeholder="yourname@gmail.com" required/>
+                  className="inp" placeholder="yourname@nbsc.edu.ph" required/>
               </div>
             </div>
 
