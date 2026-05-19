@@ -569,7 +569,8 @@ export default function StudentDashboard() {
                 <div className="divide-y divide-gray-100">
                     {mentalHealthAssessments.map((a) => {
                     const score = a.total_score ?? 0;
-                    const risk = score >= 14
+                    const hasSuicidalThoughts = (a.having_suicidal_thoughts ?? 0) > 0;
+                    const risk = hasSuicidalThoughts || score >= 14
                       ? { label: 'Immediate Support', color: 'red', icon: '🚨' }
                       : score >= 11
                       ? { label: 'Need Support', color: 'yellow', icon: '⚠️' }
@@ -578,11 +579,11 @@ export default function StudentDashboard() {
                     const handlePrintAssessment = () => {
                       const win = window.open('', '_blank');
                       if (!win) return;
-                      const riskBg = score >= 14 ? '#fef2f2' : score >= 11 ? '#fff7ed' : '#f0fdf4';
-                      const riskBorder = score >= 14 ? '#fca5a5' : score >= 11 ? '#fdba74' : '#86efac';
-                      const riskText = score >= 14 ? '#991b1b' : score >= 11 ? '#9a3412' : '#166534';
+                      const riskBg = (hasSuicidalThoughts || score >= 14) ? '#fef2f2' : score >= 11 ? '#fff7ed' : '#f0fdf4';
+                      const riskBorder = (hasSuicidalThoughts || score >= 14) ? '#fca5a5' : score >= 11 ? '#fdba74' : '#86efac';
+                      const riskText = (hasSuicidalThoughts || score >= 14) ? '#991b1b' : score >= 11 ? '#9a3412' : '#166534';
                       const scoreBar = Math.round((score / 20) * 100);
-                      const scoreColor = score >= 14 ? '#dc2626' : score >= 11 ? '#ea580c' : '#16a34a';
+                      const scoreColor = (hasSuicidalThoughts || score >= 14) ? '#dc2626' : score >= 11 ? '#ea580c' : '#16a34a';
                       win.document.write(`<!DOCTYPE html><html lang="en"><head>
                         <meta charset="UTF-8"/>
                         <title>BSRS-5 Result — ${profile?.full_name}</title>
