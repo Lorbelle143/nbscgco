@@ -65,6 +65,7 @@ export default function InventoryForm() {
   const [hasDraft, setHasDraft] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string>('');
+  const [photoRatioWarning, setPhotoRatioWarning] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
 
   // Enable session timeout protection (always call hook, but it checks isAdminMode internally)
@@ -335,7 +336,21 @@ export default function InventoryForm() {
       const renamedFile = new File([file], newName, { type: file.type });
       setPhotoFile(renamedFile);
       const reader = new FileReader();
-      reader.onloadend = () => setPhotoPreview(reader.result as string);
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        setPhotoPreview(result);
+        // Check 1x1 ratio
+        const img = new Image();
+        img.onload = () => {
+          const ratio = img.width / img.height;
+          if (ratio < 0.85 || ratio > 1.15) {
+            setPhotoRatioWarning(true);
+          } else {
+            setPhotoRatioWarning(false);
+          }
+        };
+        img.src = result;
+      };
       reader.readAsDataURL(renamedFile);
     }
   };
@@ -413,6 +428,7 @@ export default function InventoryForm() {
       setError(`Please fill in all required fields: ${missing.join(', ')}`);
       goToSection(1);
       setLoading(false);
+      submittingRef.current = false; // allow retry
       return;
     }
 
@@ -427,6 +443,7 @@ export default function InventoryForm() {
         (formData.whodasDays3 !== '' && (isNaN(d3) || d3 < 0 || d3 > 30))) {
       setError('WHODAS summary days (H1, H2, H3) must be between 0 and 30 only.');
       setLoading(false);
+      submittingRef.current = false; // allow retry
       return;
     }
 
@@ -434,6 +451,7 @@ export default function InventoryForm() {
     if (!isEditMode && !photoFile) {
       setError('Please upload a 1x1 photo before submitting.');
       setLoading(false);
+      submittingRef.current = false; // allow retry
       return;
     }
 
@@ -441,6 +459,7 @@ export default function InventoryForm() {
     if (isEditMode && !photoFile && !existingPhotoUrl) {
       setError('Please upload a 1x1 photo before submitting.');
       setLoading(false);
+      submittingRef.current = false; // allow retry
       return;
     }
 
@@ -696,12 +715,12 @@ export default function InventoryForm() {
                 </div>
                 
                 {/* Photo Upload */}
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6">
+                <div className={`border-2 border-dashed rounded-lg p-6 transition-colors ${photoRatioWarning ? 'border-red-400 bg-red-50' : photoPreview ? 'border-green-400 bg-green-50' : 'border-gray-300'}`}>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Student Photo (1x1) <span className="text-red-500">*</span>
+                    1 x 1 Photo <span className="text-red-500">*</span>
                   </label>
                   <p className="text-xs text-gray-500 mb-1">
-                    Required. Please upload a clear 1x1 photo.
+                    Required. Upload a clear square (1x1) photo.
                   </p>
                   <p className="text-xs text-amber-600 font-medium mb-3">
                     ⚠️ Maximum file size: 5MB. Compress your photo if needed.
@@ -713,12 +732,35 @@ export default function InventoryForm() {
                     className="block w-full text-sm"
                   />
                   {photoPreview && (
-                    <div className="mt-4 flex items-center gap-3">
-                      <img src={photoPreview} alt="Preview" className="w-24 h-24 object-cover rounded-lg shadow-md border border-gray-200" />
-                      <div className="text-xs text-gray-500">
-                        <p className="font-medium text-gray-700">Preview</p>
-                        {photoFile && <p className="mt-1 text-green-600">✓ {photoFile.name}</p>}
-                        {photoFile && <p className="text-gray-400">{(photoFile.size / 1024).toFixed(0)} KB</p>}
+                    <div className="mt-4 flex items-start gap-4">
+                      <div className={`border-4 rounded-lg overflow-hidden flex-shrink-0 ${photoRatioWarning ? 'border-red-500' : 'border-green-500'}`}>
+                        <img src={photoPreview} alt="Preview" className="w-24 h-24 object-cover" />
+                      </div>
+                      <div className="flex-1">
+                        {photoRatioWarning ? (
+                          <div className="flex items-start gap-2 p-3 bg-red-100 border border-red-300 rounded-lg">
+                            <svg className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <div>
+                              <p className="text-sm font-bold text-red-700">⚠️ Photo is not 1x1!</p>
+                              <p className="text-xs text-red-600 mt-0.5">Please upload a square photo. Your photo appears to be rectangular.</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 p-3 bg-green-100 border border-green-300 rounded-lg">
+                            <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-sm font-bold text-green-700">Photo looks good! ✅</p>
+                          </div>
+                        )}
+                        {photoFile && (
+                          <div className="mt-2 text-xs text-gray-500">
+                            <p className="font-medium text-gray-700 truncate">📎 {photoFile.name}</p>
+                            <p>{(photoFile.size / 1024).toFixed(0)} KB</p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
