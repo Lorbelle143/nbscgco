@@ -20,7 +20,7 @@ function getResourceType(file: File): 'image' | 'video' | 'raw' {
 }
 
 /** Compress image if larger than maxSizeMB */
-async function compressImage(file: File, maxSizeMB = 2): Promise<File> {
+async function compressImage(file: File, maxSizeMB = 1): Promise<File> {
   if (file.size <= maxSizeMB * 1024 * 1024) return file; // already small enough
   
   return new Promise((resolve, reject) => {
@@ -31,8 +31,8 @@ async function compressImage(file: File, maxSizeMB = 2): Promise<File> {
         const canvas = document.createElement('canvas');
         let { width, height } = img;
         
-        // Scale down if too large
-        const maxDim = 1920;
+        // Scale down to max 1200px for 1x1 photos
+        const maxDim = 1200;
         if (width > maxDim || height > maxDim) {
           if (width > height) {
             height = (height / width) * maxDim;
@@ -48,15 +48,23 @@ async function compressImage(file: File, maxSizeMB = 2): Promise<File> {
         const ctx = canvas.getContext('2d');
         ctx?.drawImage(img, 0, 0, width, height);
         
-        canvas.toBlob(
-          (blob) => {
-            if (!blob) { reject(new Error('Compression failed')); return; }
-            const compressed = new File([blob], file.name, { type: 'image/jpeg', lastModified: Date.now() });
-            resolve(compressed);
-          },
-          'image/jpeg',
-          0.85 // quality
-        );
+        // Try progressively lower quality until under maxSizeMB
+        const tryCompress = (quality: number) => {
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) { reject(new Error('Compression failed')); return; }
+              if (blob.size > maxSizeMB * 1024 * 1024 && quality > 0.3) {
+                tryCompress(quality - 0.1); // reduce quality further
+              } else {
+                const compressed = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg', lastModified: Date.now() });
+                resolve(compressed);
+              }
+            },
+            'image/jpeg',
+            quality
+          );
+        };
+        tryCompress(0.8);
       };
       img.onerror = () => reject(new Error('Failed to load image'));
       img.src = e.target?.result as string;
@@ -78,9 +86,9 @@ async function uploadToAccount(
   formData.append('upload_preset', uploadPreset);
   formData.append('folder', folder);
 
-  // 30-second timeout — prevents hanging forever on slow connections
+  // 60-second timeout — prevents hanging forever on slow connections
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
     const res = await fetch(
@@ -114,8 +122,8 @@ export async function uploadToCloudinary(
     throw new Error('File is too large. Maximum size is 10MB.');
   }
 
-  // Compress if larger than 2MB
-  const fileToUpload = await compressImage(file, 2).catch(() => file);
+  // Compress to max 1MB before uploading — prevents timeout on slow connections
+  const fileToUpload = await compressImage(file, 1).catch(() => file);
 
   // Try Cloudinary primary
   if (CLOUD_NAME && UPLOAD_PRESET) {
