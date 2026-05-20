@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import * as React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase, supabaseAdmin } from '../lib/supabase';
@@ -2615,62 +2616,180 @@ export default function AdminDashboard() {
         )}
 
         {/* Password Reset Requests View */}
-        {viewMode === 'reset-requests' && (
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-            <div className="p-6 border-b border-gray-100 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-bold text-gray-800">Password Reset Requests</h3>
-                <p className="text-sm text-gray-500 mt-1">Students who forgot their password — set a new password for them below.</p>
-              </div>
-              <button onClick={loadResetRequests} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm font-medium text-gray-700 transition">Refresh</button>
-            </div>
-            {resetRequests.length === 0 ? (
-              <div className="p-12 text-center text-gray-400">
-                <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                </svg>
-                <p>No password reset requests yet.</p>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {resetRequests.map(req => (
-                  <div key={req.id} className={`p-5 flex flex-col sm:flex-row sm:items-center gap-4 ${req.status === 'resolved' ? 'opacity-50' : ''}`}>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold text-gray-800">{req.full_name || 'Unknown'}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${req.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
-                          {req.status === 'pending' ? 'Pending' : 'Resolved'}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-500">Student ID: <span className="font-medium text-gray-700">{req.student_id}</span></p>
-                      {req.email && <p className="text-sm text-gray-500">Email: {req.email}</p>}
-                      {req.reason && <p className="text-sm text-gray-500 mt-1">Reason: {req.reason}</p>}
-                      <p className="text-xs text-gray-400 mt-1">{new Date(req.created_at).toLocaleString()}</p>
-                    </div>
-                    {req.status === 'pending' && (
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="password"
-                          placeholder="New password (min 6)"
-                          value={resetPasswordInputs[req.id] || ''}
-                          onChange={e => setResetPasswordInputs(prev => ({ ...prev, [req.id]: e.target.value }))}
-                          className="px-3 py-2 border border-gray-300 rounded-lg text-sm w-44 focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                        />
-                        <button
-                          onClick={() => handleResolveResetRequest(req)}
-                          disabled={actionLoading}
-                          className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-medium transition disabled:opacity-50"
-                        >
-                          Set Password
-                        </button>
-                      </div>
-                    )}
+        {viewMode === 'reset-requests' && (() => {
+          const [resetSearch, setResetSearch] = React.useState('');
+          const [resetListView, setResetListView] = React.useState<'grid' | 'list'>('grid');
+          const [resetFilter, setResetFilter] = React.useState<'all' | 'pending' | 'resolved'>('all');
+
+          const filteredRequests = resetRequests.filter(req => {
+            const q = resetSearch.toLowerCase();
+            const matchSearch = !q ||
+              (req.full_name || '').toLowerCase().includes(q) ||
+              (req.student_id || '').toLowerCase().includes(q) ||
+              (req.email || '').toLowerCase().includes(q);
+            const matchFilter = resetFilter === 'all' || req.status === resetFilter;
+            return matchSearch && matchFilter;
+          });
+
+          return (
+            <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-orange-50 to-red-50 px-8 py-6 border-b-2 border-orange-100">
+                <div className="flex flex-wrap justify-between items-center gap-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800 mb-1">🔑 Password Reset Requests</h2>
+                    <p className="text-sm text-gray-600">Students who forgot their password — set a new password for them.</p>
                   </div>
-                ))}
+                  <div className="flex items-center gap-3 flex-wrap">
+                    {/* Search */}
+                    <div className="relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      <input
+                        type="text"
+                        placeholder="Search by name, ID, email..."
+                        value={resetSearch}
+                        onChange={e => setResetSearch(e.target.value)}
+                        className="pl-9 pr-4 py-2 text-sm border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent w-52 bg-white"
+                      />
+                    </div>
+                    {/* Filter */}
+                    <select
+                      value={resetFilter}
+                      onChange={e => setResetFilter(e.target.value as any)}
+                      className="px-3 py-2 text-sm border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 bg-white"
+                    >
+                      <option value="all">All ({resetRequests.length})</option>
+                      <option value="pending">Pending ({resetRequests.filter(r => r.status === 'pending').length})</option>
+                      <option value="resolved">Resolved ({resetRequests.filter(r => r.status === 'resolved').length})</option>
+                    </select>
+                    {/* Grid/List toggle */}
+                    <div className="flex border-2 border-gray-200 rounded-xl overflow-hidden">
+                      <button onClick={() => setResetListView('grid')} title="Grid view"
+                        className={`px-3 py-2 transition ${resetListView === 'grid' ? 'bg-orange-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                        </svg>
+                      </button>
+                      <button onClick={() => setResetListView('list')} title="List view"
+                        className={`px-3 py-2 transition ${resetListView === 'list' ? 'bg-orange-600 text-white' : 'text-gray-500 hover:bg-gray-100'}`}>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        </svg>
+                      </button>
+                    </div>
+                    <button onClick={loadResetRequests} className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-xl text-sm font-medium text-gray-700 transition">🔄 Refresh</button>
+                  </div>
+                </div>
               </div>
-            )}
-          </div>
-        )}
+
+              <div className="p-6">
+                {filteredRequests.length === 0 ? (
+                  <div className="text-center py-12 text-gray-400">
+                    <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                    </svg>
+                    <p className="font-medium">{resetSearch ? 'No requests match your search' : 'No password reset requests yet.'}</p>
+                  </div>
+                ) : resetListView === 'grid' ? (
+                  /* ── Grid View ── */
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {filteredRequests.map(req => (
+                      <div key={req.id} className={`border-2 rounded-xl p-5 transition-all ${req.status === 'resolved' ? 'border-gray-100 bg-gray-50 opacity-60' : 'border-orange-200 bg-orange-50 hover:shadow-md'}`}>
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center text-orange-700 font-bold flex-shrink-0">
+                              {req.full_name?.charAt(0) || '?'}
+                            </div>
+                            <div>
+                              <p className="font-bold text-gray-800 text-sm">{req.full_name || 'Unknown'}</p>
+                              <p className="text-xs text-gray-500 font-mono">{req.student_id}</p>
+                            </div>
+                          </div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${req.status === 'pending' ? 'bg-yellow-100 text-yellow-700 border border-yellow-300' : 'bg-green-100 text-green-700 border border-green-300'}`}>
+                            {req.status === 'pending' ? '⏳ Pending' : '✅ Resolved'}
+                          </span>
+                        </div>
+                        {req.email && <p className="text-xs text-gray-500 mb-1">📧 {req.email}</p>}
+                        {req.reason && <p className="text-xs text-gray-500 mb-2 italic">"{req.reason}"</p>}
+                        <p className="text-xs text-gray-400 mb-3">{new Date(req.created_at).toLocaleString()}</p>
+                        {req.status === 'pending' && (
+                          <div className="flex gap-2">
+                            <input
+                              type="password"
+                              placeholder="New password (min 6)"
+                              value={resetPasswordInputs[req.id] || ''}
+                              onChange={e => setResetPasswordInputs(prev => ({ ...prev, [req.id]: e.target.value }))}
+                              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-xs focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                            />
+                            <button
+                              onClick={() => handleResolveResetRequest(req)}
+                              disabled={actionLoading}
+                              className="px-3 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-xs font-bold transition disabled:opacity-50"
+                            >
+                              Set
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  /* ── List View ── */
+                  <div className="border border-gray-100 rounded-xl overflow-hidden">
+                    <div className="grid grid-cols-12 gap-2 px-4 py-2 bg-gray-50 border-b text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      <div className="col-span-3">Name</div>
+                      <div className="col-span-2">Student ID</div>
+                      <div className="col-span-3">Email</div>
+                      <div className="col-span-1">Status</div>
+                      <div className="col-span-3">Action</div>
+                    </div>
+                    <div className="divide-y divide-gray-50">
+                      {filteredRequests.map(req => (
+                        <div key={req.id} className={`grid grid-cols-12 gap-2 px-4 py-3 items-center ${req.status === 'resolved' ? 'opacity-50' : 'hover:bg-orange-50/40'}`}>
+                          <div className="col-span-3 flex items-center gap-2">
+                            <div className="w-7 h-7 bg-orange-100 rounded-full flex items-center justify-center text-orange-700 font-bold text-xs flex-shrink-0">
+                              {req.full_name?.charAt(0) || '?'}
+                            </div>
+                            <span className="text-sm font-semibold text-gray-800 truncate">{req.full_name || 'Unknown'}</span>
+                          </div>
+                          <div className="col-span-2 text-xs text-gray-500 font-mono truncate">{req.student_id}</div>
+                          <div className="col-span-3 text-xs text-gray-500 truncate">{req.email}</div>
+                          <div className="col-span-1">
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${req.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'}`}>
+                              {req.status === 'pending' ? '⏳' : '✅'}
+                            </span>
+                          </div>
+                          <div className="col-span-3">
+                            {req.status === 'pending' && (
+                              <div className="flex gap-1">
+                                <input
+                                  type="password"
+                                  placeholder="New password"
+                                  value={resetPasswordInputs[req.id] || ''}
+                                  onChange={e => setResetPasswordInputs(prev => ({ ...prev, [req.id]: e.target.value }))}
+                                  className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-orange-500 min-w-0"
+                                />
+                                <button
+                                  onClick={() => handleResolveResetRequest(req)}
+                                  disabled={actionLoading}
+                                  className="px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white rounded text-xs font-bold transition disabled:opacity-50 flex-shrink-0"
+                                >
+                                  Set
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Audit Log View */}
         {viewMode === 'audit-log' && (
