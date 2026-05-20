@@ -22,10 +22,7 @@ export default function Register() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!formData.email.toLowerCase().endsWith('@nbsc.edu.ph')) {
-      setError('Please use your institutional email address (@nbsc.edu.ph).');
-      return;
-    }
+    // Allow both institutional (@nbsc.edu.ph) and personal email (gmail, yahoo, etc.)
     if (formData.password !== formData.confirmPassword) { setError('Passwords do not match'); return; }
     if (formData.password.length < 6) { setError('Password must be at least 6 characters'); return; }
     setLoading(true);
@@ -156,7 +153,7 @@ export default function Register() {
             {/* Steps */}
             <div className="mt-8 space-y-3">
               {[
-                {n:'1', t:'Create your account with institutional email (@nbsc.edu.ph)'},
+                {n:'1', t:'Create your account with institutional or personal email'},
                 {n:'2', t:'Visit the Guidance Office'},
                 {n:'3', t:'Complete your inventory form'},
               ].map(s=>(
@@ -203,7 +200,7 @@ export default function Register() {
           {/* Heading */}
           <div className="mb-7 a0">
             <h2 className="text-3xl font-black text-white mb-2">Create account</h2>
-            <p className="text-white/60 text-base">Register with your institutional email (@nbsc.edu.ph)</p>
+            <p className="text-white/60 text-base">Register with your institutional or personal email</p>
           </div>
 
           {success ? (
@@ -252,7 +249,7 @@ export default function Register() {
                       </svg>
                     </div>
                     <input type="email" name="email" value={formData.email} onChange={handleChange}
-                      className="inp" placeholder="yourname@nbsc.edu.ph" required/>
+                      className="inp" placeholder="yourname@nbsc.edu.ph or gmail.com" required/>
                   </div>
                 </div>
 
