@@ -26,7 +26,7 @@ import { exportSubmissionPDF, exportAllSubmissionsPDF } from '../utils/pdfUtils'
 import { logAudit } from '../utils/auditLog';
 import { notifyPasswordReset, notifySubmissionStatus } from '../utils/emailNotify';
 import { uploadToCloudinary } from '../utils/cloudinary';
-import { uploadDocument } from '../utils/storageUpload';
+import { uploadDocument, uploadMultipleDocuments } from '../utils/storageUpload';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 
@@ -130,7 +130,7 @@ export default function AdminDashboard() {
     year_level: '',
     contact_number: '',
   });
-  const [paperPdfFile, setPaperPdfFile] = useState<File | null>(null);
+  const [paperPdfFiles, setPaperPdfFiles] = useState<File[]>([]);
   const [paperImportLoading, setPaperImportLoading] = useState(false);
 
   const navigate = useNavigate();
@@ -273,13 +273,13 @@ export default function AdminDashboard() {
   const handlePaperImport = async () => {
     if (!paperImportData.full_name.trim()) { toast.error('Please enter student name'); return; }
     if (!paperImportData.student_id.trim()) { toast.error('Please enter student ID'); return; }
-    if (!paperPdfFile) { toast.error('Please upload the scanned PDF form'); return; }
+    if (paperPdfFiles.length === 0) { toast.error('Please upload at least one scanned PDF form'); return; }
 
     setPaperImportLoading(true);
     try {
-      // Upload PDF to Cloudinary
-      toast.success('📤 Uploading PDF...');
-      const pdfUrl = await uploadDocument(paperPdfFile, 'nbsc-gco/paper-forms');
+      // Upload all PDFs to Cloudinary
+      toast.success(`📤 Uploading ${paperPdfFiles.length} PDF(s)...`);
+      const pdfUrls = await uploadMultipleDocuments(paperPdfFiles, 'nbsc-gco/paper-forms');
 
       // Find student profile
       const { data: profile } = await (supabaseAdmin || supabase)
@@ -290,7 +290,7 @@ export default function AdminDashboard() {
 
       const userId = profile?.id || '00000000-0000-0000-0000-000000000000';
 
-      // Create submission record with PDF URL stored in form_data
+      // Create submission record with all PDF URLs
       const { data: newSub, error } = await (supabaseAdmin || supabase)
         .from('inventory_submissions')
         .insert({
@@ -303,8 +303,10 @@ export default function AdminDashboard() {
           photo_url: '',
           submission_status: 'submitted',
           form_data: {
-            scanned_pdf_url: pdfUrl,
+            scanned_pdf_url: pdfUrls[0],        // primary PDF
+            scanned_pdf_urls: pdfUrls,           // all PDFs
             is_paper_form: true,
+            pdf_count: pdfUrls.length,
             lastName: paperImportData.full_name.trim().split(' ').slice(-1)[0] || '',
             firstName: paperImportData.full_name.trim().split(' ')[0] || '',
           },
@@ -314,12 +316,12 @@ export default function AdminDashboard() {
 
       if (error) throw error;
 
-      toast.success(`✅ Paper form imported for ${paperImportData.full_name}!`);
+      toast.success(`✅ ${pdfUrls.length} PDF(s) imported for ${paperImportData.full_name}!`);
       if (newSub) localAddSubmission(newSub);
 
       // Reset form
       setPaperImportData({ full_name: '', student_id: '', course: '', year_level: '', contact_number: '' });
-      setPaperPdfFile(null);
+      setPaperPdfFiles([]);
       setShowPaperImport(false);
     } catch (err: any) {
       toast.error('Failed to import: ' + err.message);
@@ -581,9 +583,16 @@ export default function AdminDashboard() {
 
   const handleView = async (submission: any) => {
     const full = await fetchFullSubmission(submission);
-    // If it's a paper form with scanned PDF, open PDF directly
-    if (full?.form_data?.is_paper_form && full?.form_data?.scanned_pdf_url) {
-      window.open(full.form_data.scanned_pdf_url, '_blank');
+    // If it's a paper form with scanned PDF(s), open them
+    if (full?.form_data?.is_paper_form) {
+      const urls: string[] = full.form_data.scanned_pdf_urls || (full.form_data.scanned_pdf_url ? [full.form_data.scanned_pdf_url] : []);
+      if (urls.length === 1) {
+        window.open(urls[0], '_blank');
+      } else if (urls.length > 1) {
+        // Open all PDFs in new tabs
+        urls.forEach((url: string) => window.open(url, '_blank'));
+        toast.success(`Opened ${urls.length} PDF(s) in new tabs`);
+      }
       return;
     }
     setSelectedSubmission(full);
@@ -3367,38 +3376,45 @@ export default function AdminDashboard() {
               <h2 className="text-xl font-bold text-white">📄 Import Paper Form</h2>
               <p className="text-purple-200 text-sm">Upload scanned inventory form</p>
             </div>
-            <button onClick={() => setShowPaperImport(false)} className="text-white/70 hover:text-white text-2xl">×</button>
+            <button onClick={() => { setShowPaperImport(false); setPaperPdfFiles([]); }} className="text-white/70 hover:text-white text-2xl">×</button>
           </div>
           <div className="p-6 space-y-4">
-            {/* PDF Upload */}
+            {/* PDF Upload - Multiple */}
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">
-                Scanned PDF Form <span className="text-red-500">*</span>
+                Scanned PDF Form(s) <span className="text-red-500">*</span>
+                <span className="text-xs text-gray-400 font-normal ml-1">(can select multiple)</span>
               </label>
-              <div className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition ${paperPdfFile ? 'border-purple-400 bg-purple-50' : 'border-gray-300 hover:border-purple-400'}`}
+              <div className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition ${paperPdfFiles.length > 0 ? 'border-purple-400 bg-purple-50' : 'border-gray-300 hover:border-purple-400'}`}
                 onClick={() => document.getElementById('paper-pdf-input')?.click()}>
                 <input
                   id="paper-pdf-input"
                   type="file"
                   accept="application/pdf"
+                  multiple
                   className="hidden"
-                  onChange={e => setPaperPdfFile(e.target.files?.[0] || null)}
+                  onChange={e => setPaperPdfFiles(Array.from(e.target.files || []))}
                 />
-                {paperPdfFile ? (
-                  <div className="flex items-center justify-center gap-2 text-purple-700">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="font-semibold text-sm">{paperPdfFile.name}</span>
-                    <span className="text-xs text-gray-500">({(paperPdfFile.size / 1024).toFixed(0)} KB)</span>
+                {paperPdfFiles.length > 0 ? (
+                  <div className="space-y-1">
+                    {paperPdfFiles.map((f, i) => (
+                      <div key={i} className="flex items-center justify-center gap-2 text-purple-700">
+                        <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-sm font-medium truncate max-w-xs">{f.name}</span>
+                        <span className="text-xs text-gray-400">({(f.size / 1024).toFixed(0)} KB)</span>
+                      </div>
+                    ))}
+                    <p className="text-xs text-purple-500 mt-1">Click to change files</p>
                   </div>
                 ) : (
                   <div className="text-gray-400">
                     <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                     </svg>
-                    <p className="text-sm font-medium">Click to upload PDF</p>
-                    <p className="text-xs mt-1">Max 10MB</p>
+                    <p className="text-sm font-medium">Click to upload PDF(s)</p>
+                    <p className="text-xs mt-1">Max 10MB each • Multiple files allowed</p>
                   </div>
                 )}
               </div>
@@ -3481,7 +3497,7 @@ export default function AdminDashboard() {
                 ) : '📤 Import Form'}
               </button>
               <button
-                onClick={() => setShowPaperImport(false)}
+                onClick={() => { setShowPaperImport(false); setPaperPdfFiles([]); }}
                 className="px-6 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition"
               >
                 Cancel
