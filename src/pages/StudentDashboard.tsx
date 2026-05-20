@@ -1375,7 +1375,7 @@ export default function StudentDashboard() {
                           </div>
                         </div>
                         <a
-                          href="https://docs.google.com/spreadsheets/d/1-80LunHLARHr83-yBFB9KGFObQMEM2mUIx4L1PXhgT0/edit?gid=0#gid=0"
+                          href="https://docs.google.com/forms/d/1HETdNws8TmJq6i7AgjmXrzJB7UbBjdNf6sK7ad6ZT3k/viewform"
                           target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition w-full justify-center"
@@ -1525,7 +1525,7 @@ export default function StudentDashboard() {
                               <div className="flex flex-col items-center gap-1">
                                 <span className="text-red-600 font-bold text-sm">⚠️ Required</span>
                                 <a
-                                  href="https://docs.google.com/spreadsheets/d/1-80LunHLARHr83-yBFB9KGFObQMEM2mUIx4L1PXhgT0/edit?gid=0#gid=0"
+                                  href="https://docs.google.com/forms/d/1HETdNws8TmJq6i7AgjmXrzJB7UbBjdNf6sK7ad6ZT3k/viewform"
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-xs text-red-700 hover:text-red-900 underline"
@@ -1690,7 +1690,7 @@ function CounselingStatusCard({ studentId }: { studentId: string }) {
           )}
           {data.counseling_status === 'scheduled' && (
             <a
-              href="https://docs.google.com/spreadsheets/d/1-80LunHLARHr83-yBFB9KGFObQMEM2mUIx4L1PXhgT0/edit?gid=0#gid=0"
+              href="https://docs.google.com/forms/d/1HETdNws8TmJq6i7AgjmXrzJB7UbBjdNf6sK7ad6ZT3k/viewform"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition shadow-sm"

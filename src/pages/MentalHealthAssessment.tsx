@@ -415,7 +415,7 @@ export default function MentalHealthAssessment() {
                     </p>
                     <p className="text-lg text-gray-700 mb-3">SC Room 108</p>
                     <a
-                      href="https://docs.google.com/spreadsheets/d/1-80LunHLARHr83-yBFB9KGFObQMEM2mUIx4L1PXhgT0/edit?gid=0#gid=0"
+                      href="https://docs.google.com/forms/d/1HETdNws8TmJq6i7AgjmXrzJB7UbBjdNf6sK7ad6ZT3k/viewform"
                       target="_blank"
                       rel="noopener noreferrer"
                       className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-white transition ${
