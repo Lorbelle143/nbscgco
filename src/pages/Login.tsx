@@ -6,29 +6,6 @@ import type { UserRole } from '../store/authStore';
 
 const CAMPUS = "/nbsc-bg.jpg";
 const MAX_ATTEMPTS = 3;
-const LOCK_KEY = 'nbsc_locked_accounts';
-
-function getLockedAccounts(): Record<string, number> {
-  try { return JSON.parse(localStorage.getItem(LOCK_KEY) || '{}'); } catch { return {}; }
-}
-function lockAccount(email: string) {
-  const locked = getLockedAccounts();
-  locked[email.toLowerCase()] = Date.now();
-  localStorage.setItem(LOCK_KEY, JSON.stringify(locked));
-}
-function isAccountLocked(email: string): boolean {
-  const locked = getLockedAccounts();
-  return !!locked[email.toLowerCase()];
-}
-function getAttempts(email: string): number {
-  try { return parseInt(localStorage.getItem(`nbsc_attempts_${email.toLowerCase()}`) || '0'); } catch { return 0; }
-}
-function setAttemptCount(email: string, count: number) {
-  localStorage.setItem(`nbsc_attempts_${email.toLowerCase()}`, String(count));
-}
-function clearAttempts(email: string) {
-  localStorage.removeItem(`nbsc_attempts_${email.toLowerCase()}`);
-}
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -42,37 +19,75 @@ export default function Login() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    // Check if account is permanently locked
-    if (isAccountLocked(email)) {
-      setError('Your account has been locked due to too many failed login attempts. Please contact the administrator to unlock your account.');
-      return;
-    }
-
     setLoading(true);
-    try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) {
-        const currentAttempts = getAttempts(email) + 1;
-        setAttemptCount(email, currentAttempts);
-        const remaining = MAX_ATTEMPTS - currentAttempts;
 
-        if (currentAttempts >= MAX_ATTEMPTS) {
-          lockAccount(email);
-          setError('Your account has been locked due to too many failed login attempts. Please contact the administrator to unlock your account.');
-        } else if (remaining === 1) {
-          setError(`Incorrect email or password. ⚠️ WARNING: 1 attempt remaining before your account is locked.`);
+    try {
+      // Check if account is locked in DB first
+      const { data: profileCheck } = await supabase
+        .from('profiles')
+        .select('is_locked, login_attempts')
+        .eq('email', email.toLowerCase().trim())
+        .maybeSingle();
+
+      if (profileCheck?.is_locked) {
+        setError('🔒 Your account has been locked due to too many failed login attempts. Please contact the administrator to unlock your account.');
+        setLoading(false);
+        return;
+      }
+
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+
+      if (signInError) {
+        // Increment login_attempts in DB
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, login_attempts')
+          .eq('email', email.toLowerCase().trim())
+          .maybeSingle();
+
+        if (profile?.id) {
+          const newAttempts = (profile.login_attempts || 0) + 1;
+          const shouldLock = newAttempts >= MAX_ATTEMPTS;
+          await supabase
+            .from('profiles')
+            .update({
+              login_attempts: newAttempts,
+              is_locked: shouldLock,
+            })
+            .eq('id', profile.id);
+
+          if (shouldLock) {
+            setError('🔒 Your account has been locked due to too many failed login attempts. Please contact the administrator to unlock your account.');
+          } else {
+            const remaining = MAX_ATTEMPTS - newAttempts;
+            if (remaining === 1) {
+              setError(`Incorrect email or password. ⚠️ WARNING: 1 attempt remaining before your account is locked.`);
+            } else {
+              setError(`Incorrect email or password. ${remaining} attempts remaining.`);
+            }
+          }
         } else {
-          setError(`Incorrect email or password. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`);
+          setError('Incorrect email or password. Please try again.');
         }
         setLoading(false);
         return;
       }
+
       if (data.user) {
-        // Clear failed attempts on successful login
-        clearAttempts(email);
-        const { data: fp, error: fe } = await supabase.from('profiles').select('id, email, full_name, student_id, is_admin, role, pending_password, profile_picture, profile_picture_url, last_login').eq('id', data.user.id).maybeSingle();
+        // Reset login attempts on successful login
+        void supabase.from('profiles').update({ login_attempts: 0, is_locked: false }).eq('id', data.user.id);
+
+        const { data: fp, error: fe } = await supabase.from('profiles').select('id, email, full_name, student_id, is_admin, role, pending_password, profile_picture, profile_picture_url, last_login, is_locked').eq('id', data.user.id).maybeSingle();
         if (fe || !fp) { setError('Account setup incomplete. Please contact the administrator to set up your profile.'); await supabase.auth.signOut(); setLoading(false); return; }
+
+        // Double check lock status
+        if (fp.is_locked) {
+          await supabase.auth.signOut();
+          setError('🔒 Your account has been locked. Please contact the administrator.');
+          setLoading(false);
+          return;
+        }
+
         if (fp.pending_password) {
           try {
             const { error: pe } = await supabase.auth.updateUser({ password: fp.pending_password });
@@ -80,6 +95,7 @@ export default function Login() {
             await supabase.from('profiles').update({ pending_password: null }).eq('id', data.user.id);
           } catch { await supabase.auth.signOut(); setError('An error occurred. Please try again.'); setLoading(false); return; }
         }
+
         // Update last_login in background — non-blocking
         void supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', data.user.id);
         const role: UserRole = fp.role || (fp.is_admin ? 'admin' : 'student');

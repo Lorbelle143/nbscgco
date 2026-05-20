@@ -1650,7 +1650,9 @@ export default function AdminDashboard() {
                             </div>
                           </div>
                           {/* Status badge */}
-                          {u.student_id?.startsWith('PENDING-')
+                          {u.is_locked
+                            ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-300 whitespace-nowrap">🔒 Locked</span>
+                            : u.student_id?.startsWith('PENDING-')
                             ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-300 whitespace-nowrap">⏳ Pending</span>
                             : <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-300 whitespace-nowrap">✅ Active</span>
                           }
@@ -1687,26 +1689,18 @@ export default function AdminDashboard() {
                             🗑 Delete
                           </button>
                           {/* Unlock button — shows only if account is locked */}
-                          {(() => {
-                            try {
-                              const locked = JSON.parse(localStorage.getItem('nbsc_locked_accounts') || '{}');
-                              return locked[u.email?.toLowerCase()] ? (
-                                <button
-                                  onClick={() => {
-                                    const locked = JSON.parse(localStorage.getItem('nbsc_locked_accounts') || '{}');
-                                    delete locked[u.email?.toLowerCase()];
-                                    localStorage.setItem('nbsc_locked_accounts', JSON.stringify(locked));
-                                    localStorage.removeItem(`nbsc_attempts_${u.email?.toLowerCase()}`);
-                                    toast.success(`🔓 ${u.full_name}'s account has been unlocked`);
-                                    setUsers(prev => [...prev]); // force re-render
-                                  }}
-                                  className="col-span-2 px-3 py-2 bg-amber-500 text-white text-xs rounded-lg hover:bg-amber-600 transition font-semibold"
-                                >
-                                  🔓 Unlock Account
-                                </button>
-                              ) : null;
-                            } catch { return null; }
-                          })()}
+                          {u.is_locked && (
+                            <button
+                              onClick={async () => {
+                                await supabase.from('profiles').update({ is_locked: false, login_attempts: 0 }).eq('id', u.id);
+                                localUpdateStudent(u.id, { is_locked: false, login_attempts: 0 });
+                                toast.success(`🔓 ${u.full_name}'s account has been unlocked`);
+                              }}
+                              className="col-span-2 px-3 py-2 bg-amber-500 text-white text-xs rounded-lg hover:bg-amber-600 transition font-semibold"
+                            >
+                              🔓 Unlock Account
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
