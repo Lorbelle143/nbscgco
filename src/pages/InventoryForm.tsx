@@ -314,9 +314,9 @@ export default function InventoryForm() {
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Limit to 5MB
-      if (file.size > 5 * 1024 * 1024) {
-        setError('Photo size must be less than 5MB. Please compress or resize your photo before uploading.');
+      // Limit to 7MB
+      if (file.size > 7 * 1024 * 1024) {
+        setError('Photo size must be less than 7MB. Please compress or resize your photo before uploading.');
         e.target.value = '';
         return;
       }
@@ -723,7 +723,7 @@ export default function InventoryForm() {
                     Required. Upload a clear square (1x1) photo.
                   </p>
                   <p className="text-xs text-amber-600 font-medium mb-3">
-                    ⚠️ Maximum file size: 5MB. Compress your photo if needed.
+                    ⚠️ Maximum file size: 7MB. Compress your photo if needed.
                   </p>
                   <input
                     type="file"
