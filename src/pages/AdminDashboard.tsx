@@ -113,6 +113,10 @@ export default function AdminDashboard() {
     setUsers(prev => [...prev, student]);
   };
 
+  const [resetSearch, setResetSearch] = useState('');
+  const [resetListView, setResetListView] = useState<'grid' | 'list'>('grid');
+  const [resetFilter, setResetFilter] = useState<'all' | 'pending' | 'resolved'>('all');
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -2617,10 +2621,6 @@ export default function AdminDashboard() {
 
         {/* Password Reset Requests View */}
         {viewMode === 'reset-requests' && (() => {
-          const [resetSearch, setResetSearch] = React.useState('');
-          const [resetListView, setResetListView] = React.useState<'grid' | 'list'>('grid');
-          const [resetFilter, setResetFilter] = React.useState<'all' | 'pending' | 'resolved'>('all');
-
           const filteredRequests = resetRequests.filter(req => {
             const q = resetSearch.toLowerCase();
             const matchSearch = !q ||
