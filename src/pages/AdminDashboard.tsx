@@ -1686,6 +1686,27 @@ export default function AdminDashboard() {
                             className="px-3 py-2 bg-red-500 text-white text-xs rounded-lg hover:bg-red-600 transition font-semibold">
                             🗑 Delete
                           </button>
+                          {/* Unlock button — shows only if account is locked */}
+                          {(() => {
+                            try {
+                              const locked = JSON.parse(localStorage.getItem('nbsc_locked_accounts') || '{}');
+                              return locked[u.email?.toLowerCase()] ? (
+                                <button
+                                  onClick={() => {
+                                    const locked = JSON.parse(localStorage.getItem('nbsc_locked_accounts') || '{}');
+                                    delete locked[u.email?.toLowerCase()];
+                                    localStorage.setItem('nbsc_locked_accounts', JSON.stringify(locked));
+                                    localStorage.removeItem(`nbsc_attempts_${u.email?.toLowerCase()}`);
+                                    toast.success(`🔓 ${u.full_name}'s account has been unlocked`);
+                                    setUsers(prev => [...prev]); // force re-render
+                                  }}
+                                  className="col-span-2 px-3 py-2 bg-amber-500 text-white text-xs rounded-lg hover:bg-amber-600 transition font-semibold"
+                                >
+                                  🔓 Unlock Account
+                                </button>
+                              ) : null;
+                            } catch { return null; }
+                          })()}
                         </div>
                       </div>
                     ))}
