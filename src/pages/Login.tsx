@@ -22,14 +22,14 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Check if account is locked in DB first
-      const { data: profileCheck } = await supabase
+      // Single DB call to check lock status before attempting auth
+      const { data: preCheck } = await supabase
         .from('profiles')
-        .select('is_locked, login_attempts')
+        .select('is_locked, login_attempts, id')
         .eq('email', email.toLowerCase().trim())
         .maybeSingle();
 
-      if (profileCheck?.is_locked) {
+      if (preCheck?.is_locked) {
         setError('🔒 Your account has been locked due to too many failed login attempts. Please contact the administrator to unlock your account.');
         setLoading(false);
         return;
@@ -38,33 +38,23 @@ export default function Login() {
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
 
       if (signInError) {
-        // Increment login_attempts in DB
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id, login_attempts')
-          .eq('email', email.toLowerCase().trim())
-          .maybeSingle();
-
-        if (profile?.id) {
-          const newAttempts = (profile.login_attempts || 0) + 1;
+        // Use preCheck id to avoid another DB query
+        if (preCheck?.id) {
+          const newAttempts = (preCheck.login_attempts || 0) + 1;
           const shouldLock = newAttempts >= MAX_ATTEMPTS;
-          await supabase
-            .from('profiles')
-            .update({
-              login_attempts: newAttempts,
-              is_locked: shouldLock,
-            })
-            .eq('id', profile.id);
+          void supabase.from('profiles').update({
+            login_attempts: newAttempts,
+            is_locked: shouldLock,
+          }).eq('id', preCheck.id);
 
           if (shouldLock) {
             setError('🔒 Your account has been locked due to too many failed login attempts. Please contact the administrator to unlock your account.');
           } else {
             const remaining = MAX_ATTEMPTS - newAttempts;
-            if (remaining === 1) {
-              setError(`Incorrect email or password. ⚠️ WARNING: 1 attempt remaining before your account is locked.`);
-            } else {
-              setError(`Incorrect email or password. ${remaining} attempts remaining.`);
-            }
+            setError(remaining === 1
+              ? `Incorrect email or password. ⚠️ WARNING: 1 attempt remaining before your account is locked.`
+              : `Incorrect email or password. ${remaining} attempts remaining.`
+            );
           }
         } else {
           setError('Incorrect email or password. Please try again.');
@@ -74,13 +64,20 @@ export default function Login() {
       }
 
       if (data.user) {
-        // Reset login attempts on successful login
-        void supabase.from('profiles').update({ login_attempts: 0, is_locked: false }).eq('id', data.user.id);
+        // Single query — get full profile (includes lock status)
+        const { data: fp, error: fe } = await supabase
+          .from('profiles')
+          .select('id, email, full_name, student_id, is_admin, role, pending_password, is_locked, login_attempts')
+          .eq('id', data.user.id)
+          .maybeSingle();
 
-        const { data: fp, error: fe } = await supabase.from('profiles').select('id, email, full_name, student_id, is_admin, role, pending_password, profile_picture, profile_picture_url, last_login, is_locked').eq('id', data.user.id).maybeSingle();
-        if (fe || !fp) { setError('Account setup incomplete. Please contact the administrator to set up your profile.'); await supabase.auth.signOut(); setLoading(false); return; }
+        if (fe || !fp) {
+          setError('Account setup incomplete. Please contact the administrator.');
+          await supabase.auth.signOut();
+          setLoading(false);
+          return;
+        }
 
-        // Double check lock status
         if (fp.is_locked) {
           await supabase.auth.signOut();
           setError('🔒 Your account has been locked. Please contact the administrator.');
@@ -96,14 +93,22 @@ export default function Login() {
           } catch { await supabase.auth.signOut(); setError('An error occurred. Please try again.'); setLoading(false); return; }
         }
 
-        // Update last_login in background — non-blocking
-        void supabase.from('profiles').update({ last_login: new Date().toISOString() }).eq('id', data.user.id);
+        // Reset attempts + update last_login in one single background call
+        void supabase.from('profiles').update({
+          login_attempts: 0,
+          is_locked: false,
+          last_login: new Date().toISOString(),
+        }).eq('id', data.user.id);
+
         const role: UserRole = fp.role || (fp.is_admin ? 'admin' : 'student');
-        const isAdmin = fp.is_admin || false;
-        setUser(data.user); setIsAdmin(isAdmin); setRole(role);
+        setUser(data.user);
+        setIsAdmin(fp.is_admin || false);
+        setRole(role);
         navigate(role === 'admin' ? '/admin' : role === 'staff' ? '/staff' : '/dashboard');
       }
-    } catch (err: any) { setError('Login failed: ' + (err.message || 'Unknown error')); }
+    } catch (err: any) {
+      setError('Login failed: ' + (err.message || 'Unknown error'));
+    }
     setLoading(false);
   };
 
