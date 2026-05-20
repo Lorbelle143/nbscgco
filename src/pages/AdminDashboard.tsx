@@ -26,6 +26,7 @@ import { exportSubmissionPDF, exportAllSubmissionsPDF } from '../utils/pdfUtils'
 import { logAudit } from '../utils/auditLog';
 import { notifyPasswordReset, notifySubmissionStatus } from '../utils/emailNotify';
 import { uploadToCloudinary } from '../utils/cloudinary';
+import { uploadDocument } from '../utils/storageUpload';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 
@@ -112,10 +113,25 @@ export default function AdminDashboard() {
     setStudents(prev => [...prev, student]);
     setUsers(prev => [...prev, student]);
   };
+  const localAddSubmission = (submission: any) => {
+    setSubmissions(prev => [submission, ...prev]);
+  };
 
   const [resetSearch, setResetSearch] = useState('');
   const [resetListView, setResetListView] = useState<'grid' | 'list'>('grid');
   const [resetFilter, setResetFilter] = useState<'all' | 'pending' | 'resolved'>('all');
+
+  // Paper form import state
+  const [showPaperImport, setShowPaperImport] = useState(false);
+  const [paperImportData, setPaperImportData] = useState({
+    full_name: '',
+    student_id: '',
+    course: '',
+    year_level: '',
+    contact_number: '',
+  });
+  const [paperPdfFile, setPaperPdfFile] = useState<File | null>(null);
+  const [paperImportLoading, setPaperImportLoading] = useState(false);
 
   const navigate = useNavigate();
 
@@ -251,6 +267,64 @@ export default function AdminDashboard() {
       toast.error('Failed to set password: ' + err.message);
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  const handlePaperImport = async () => {
+    if (!paperImportData.full_name.trim()) { toast.error('Please enter student name'); return; }
+    if (!paperImportData.student_id.trim()) { toast.error('Please enter student ID'); return; }
+    if (!paperPdfFile) { toast.error('Please upload the scanned PDF form'); return; }
+
+    setPaperImportLoading(true);
+    try {
+      // Upload PDF to Cloudinary
+      toast.success('📤 Uploading PDF...');
+      const pdfUrl = await uploadDocument(paperPdfFile, 'nbsc-gco/paper-forms');
+
+      // Find student profile
+      const { data: profile } = await (supabaseAdmin || supabase)
+        .from('profiles')
+        .select('id, student_id, full_name')
+        .eq('student_id', paperImportData.student_id.trim())
+        .maybeSingle();
+
+      const userId = profile?.id || '00000000-0000-0000-0000-000000000000';
+
+      // Create submission record with PDF URL stored in form_data
+      const { data: newSub, error } = await (supabaseAdmin || supabase)
+        .from('inventory_submissions')
+        .insert({
+          user_id: userId,
+          student_id: paperImportData.student_id.trim(),
+          full_name: paperImportData.full_name.trim(),
+          course: paperImportData.course.trim() || 'N/A',
+          year_level: paperImportData.year_level.trim() || 'N/A',
+          contact_number: paperImportData.contact_number.trim() || 'N/A',
+          photo_url: '',
+          submission_status: 'submitted',
+          form_data: {
+            scanned_pdf_url: pdfUrl,
+            is_paper_form: true,
+            lastName: paperImportData.full_name.trim().split(' ').slice(-1)[0] || '',
+            firstName: paperImportData.full_name.trim().split(' ')[0] || '',
+          },
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      toast.success(`✅ Paper form imported for ${paperImportData.full_name}!`);
+      if (newSub) localAddSubmission(newSub);
+
+      // Reset form
+      setPaperImportData({ full_name: '', student_id: '', course: '', year_level: '', contact_number: '' });
+      setPaperPdfFile(null);
+      setShowPaperImport(false);
+    } catch (err: any) {
+      toast.error('Failed to import: ' + err.message);
+    } finally {
+      setPaperImportLoading(false);
     }
   };
 
@@ -507,6 +581,11 @@ export default function AdminDashboard() {
 
   const handleView = async (submission: any) => {
     const full = await fetchFullSubmission(submission);
+    // If it's a paper form with scanned PDF, open PDF directly
+    if (full?.form_data?.is_paper_form && full?.form_data?.scanned_pdf_url) {
+      window.open(full.form_data.scanned_pdf_url, '_blank');
+      return;
+    }
     setSelectedSubmission(full);
     setModalMode('view');
     setShowModal(true);
@@ -2016,6 +2095,16 @@ export default function AdminDashboard() {
                     </svg>
                     Export Excel
                   </button>
+                  <button
+                    onClick={() => setShowPaperImport(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition font-medium text-sm shadow-md"
+                    title="Import scanned paper form"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Import Paper Form
+                  </button>
                 </>
               )}
             </div>
@@ -3268,6 +3357,141 @@ export default function AdminDashboard() {
       onConfirm={confirmDialog.onConfirm}
       onCancel={closeConfirm}
     />
+
+    {/* Import Paper Form Modal */}
+    {showPaperImport && (
+      <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 px-6 py-4 rounded-t-2xl flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white">📄 Import Paper Form</h2>
+              <p className="text-purple-200 text-sm">Upload scanned inventory form</p>
+            </div>
+            <button onClick={() => setShowPaperImport(false)} className="text-white/70 hover:text-white text-2xl">×</button>
+          </div>
+          <div className="p-6 space-y-4">
+            {/* PDF Upload */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Scanned PDF Form <span className="text-red-500">*</span>
+              </label>
+              <div className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition ${paperPdfFile ? 'border-purple-400 bg-purple-50' : 'border-gray-300 hover:border-purple-400'}`}
+                onClick={() => document.getElementById('paper-pdf-input')?.click()}>
+                <input
+                  id="paper-pdf-input"
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  onChange={e => setPaperPdfFile(e.target.files?.[0] || null)}
+                />
+                {paperPdfFile ? (
+                  <div className="flex items-center justify-center gap-2 text-purple-700">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="font-semibold text-sm">{paperPdfFile.name}</span>
+                    <span className="text-xs text-gray-500">({(paperPdfFile.size / 1024).toFixed(0)} KB)</span>
+                  </div>
+                ) : (
+                  <div className="text-gray-400">
+                    <svg className="w-10 h-10 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    <p className="text-sm font-medium">Click to upload PDF</p>
+                    <p className="text-xs mt-1">Max 10MB</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Student Name */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Student Name <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                placeholder="e.g. Dela Cruz, Juan M."
+                value={paperImportData.full_name}
+                onChange={e => setPaperImportData(p => ({ ...p, full_name: e.target.value }))}
+                className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+              />
+            </div>
+
+            {/* Student ID */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Student ID <span className="text-red-500">*</span></label>
+              <input
+                type="text"
+                placeholder="e.g. 2024-0001"
+                value={paperImportData.student_id}
+                onChange={e => setPaperImportData(p => ({ ...p, student_id: e.target.value }))}
+                className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+              />
+            </div>
+
+            {/* Course & Year */}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Course</label>
+                <input
+                  type="text"
+                  placeholder="e.g. BSIT"
+                  value={paperImportData.course}
+                  onChange={e => setPaperImportData(p => ({ ...p, course: e.target.value }))}
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Year Level</label>
+                <select
+                  value={paperImportData.year_level}
+                  onChange={e => setPaperImportData(p => ({ ...p, year_level: e.target.value }))}
+                  className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm bg-white"
+                >
+                  <option value="">Select</option>
+                  <option value="First Year">1st Year</option>
+                  <option value="Second Year">2nd Year</option>
+                  <option value="Third Year">3rd Year</option>
+                  <option value="Fourth Year">4th Year</option>
+                  <option value="Fifth Year">5th Year</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Contact */}
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-1">Contact Number</label>
+              <input
+                type="text"
+                placeholder="e.g. 09123456789"
+                value={paperImportData.contact_number}
+                onChange={e => setPaperImportData(p => ({ ...p, contact_number: e.target.value }))}
+                className="w-full px-4 py-2.5 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+              />
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handlePaperImport}
+                disabled={paperImportLoading}
+                className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-xl font-bold hover:from-purple-700 hover:to-indigo-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {paperImportLoading ? (
+                  <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Uploading...</>
+                ) : '📤 Import Form'}
+              </button>
+              <button
+                onClick={() => setShowPaperImport(false)}
+                className="px-6 py-3 border-2 border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
+    
     </>
   );
 }
