@@ -122,6 +122,11 @@ export async function uploadToCloudinary(
     throw new Error('File is too large. Maximum size is 10MB.');
   }
 
+  // Check if Cloudinary is configured
+  if (!CLOUD_NAME || !UPLOAD_PRESET) {
+    throw new Error(`Cloudinary not configured. CLOUD_NAME="${CLOUD_NAME}" PRESET="${UPLOAD_PRESET}". Please set VITE_CLOUDINARY_CLOUD_NAME and VITE_CLOUDINARY_UPLOAD_PRESET in Vercel environment variables.`);
+  }
+
   // Compress to max 1MB before uploading — prevents timeout on slow connections
   const fileToUpload = await compressImage(file, 1).catch(() => file);
 
