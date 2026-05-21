@@ -26,7 +26,7 @@ import { exportSubmissionPDF, exportAllSubmissionsPDF } from '../utils/pdfUtils'
 import { logAudit } from '../utils/auditLog';
 import { notifyPasswordReset, notifySubmissionStatus } from '../utils/emailNotify';
 import { uploadToCloudinary } from '../utils/cloudinary';
-import { uploadDocument, uploadMultipleDocuments, getViewableUrl } from '../utils/storageUpload';
+import { uploadMultipleDocuments } from '../utils/storageUpload';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 
@@ -2473,55 +2473,73 @@ export default function AdminDashboard() {
                     
                     <p className="text-xs text-gray-400 mb-3 pb-3 border-b border-gray-200">
                       📅 {new Date(submission.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                    </p>                    
-                    {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => handleView(submission)}
-                        className="px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs rounded-lg hover:from-blue-700 hover:to-indigo-700 transition font-medium shadow-md"
-                      >
-                        👁️ View
-                      </button>
-                      <button
-                        onClick={() => handleEdit(submission)}
-                        className="px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs rounded-lg hover:from-amber-600 hover:to-orange-600 transition font-medium shadow-md"
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        onClick={async () => { await handlePrint(submission); }}
-                        className="px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs rounded-lg hover:from-purple-700 hover:to-indigo-700 transition font-medium shadow-md"
-                      >
-                        🖨️ Print
-                      </button>
-                      <button
-                        onClick={async () => { await handleExportPDF(submission); }}
-                        className="px-3 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white text-xs rounded-lg hover:from-red-700 hover:to-pink-700 transition font-medium shadow-md"
-                      >
-                        📄 PDF
-                      </button>
-                      <button
-                        onClick={() => handleDelete(submission.id, submission.full_name)}
-                        className="col-span-2 px-3 py-2 bg-gradient-to-r from-red-600 to-rose-600 text-white text-xs rounded-lg hover:from-red-700 hover:to-rose-700 transition font-medium shadow-md"
-                      >
-                        🗑 Delete
-                      </button>
-                      <button
-                        onClick={() => handleUpdateSubmissionStatus(submission.id, 'approved', '', submission.student_id, submission.user_id)}
-                        className="px-3 py-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition font-medium shadow-md"
-                      >
-                        ✅ Approve
-                      </button>
-                      <button
-                        onClick={() => {
-                          const remarks = prompt('Enter revision notes for the student:');
-                          if (remarks !== null) handleUpdateSubmissionStatus(submission.id, 'needs-revision', remarks, submission.student_id, submission.user_id);
-                        }}
-                        className="px-3 py-2 bg-amber-500 text-white text-xs rounded-lg hover:bg-amber-600 transition font-medium shadow-md"
-                      >
-                        ✏️ Revise
-                      </button>
-                    </div>
+                    </p>
+                    {/* Action Buttons — different for paper vs digital */}
+                    {(() => {
+                      const isPaper = !!(formData.scanned_pdf_urls?.length || formData.scanned_pdf_url);
+                      if (isPaper) {
+                        return (
+                          <div className="space-y-2">
+                            {/* Paper form badge */}
+                            <div className="flex items-center gap-1 px-2 py-1 bg-purple-50 border border-purple-200 rounded text-xs text-purple-700 font-medium">
+                              📄 Scanned Paper Form ({formData.scanned_pdf_urls?.length || 1} PDF{(formData.scanned_pdf_urls?.length || 1) > 1 ? 's' : ''})
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() => handleView(submission)}
+                                className="col-span-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs rounded-lg hover:from-purple-700 hover:to-indigo-700 transition font-medium shadow-md"
+                              >
+                                📄 View PDF(s)
+                              </button>
+                              <button
+                                onClick={() => handleUpdateSubmissionStatus(submission.id, 'approved', '', submission.student_id, submission.user_id)}
+                                className="px-3 py-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition font-medium shadow-md"
+                              >
+                                ✅ Approve
+                              </button>
+                              <button
+                                onClick={() => handleDelete(submission.id, submission.full_name)}
+                                className="px-3 py-2 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 transition font-medium shadow-md"
+                              >
+                                🗑 Delete
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="grid grid-cols-2 gap-2">
+                          <button onClick={() => handleView(submission)}
+                            className="px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-xs rounded-lg hover:from-blue-700 hover:to-indigo-700 transition font-medium shadow-md">
+                            👁️ View
+                          </button>
+                          <button onClick={() => handleEdit(submission)}
+                            className="px-3 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs rounded-lg hover:from-amber-600 hover:to-orange-600 transition font-medium shadow-md">
+                            ✏️ Edit
+                          </button>
+                          <button onClick={async () => { await handlePrint(submission); }}
+                            className="px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs rounded-lg hover:from-purple-700 hover:to-indigo-700 transition font-medium shadow-md">
+                            🖨️ Print
+                          </button>
+                          <button onClick={async () => { await handleExportPDF(submission); }}
+                            className="px-3 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white text-xs rounded-lg hover:from-red-700 hover:to-pink-700 transition font-medium shadow-md">
+                            📄 PDF
+                          </button>
+                          <button onClick={() => handleDelete(submission.id, submission.full_name)}
+                            className="col-span-2 px-3 py-2 bg-gradient-to-r from-red-600 to-rose-600 text-white text-xs rounded-lg hover:from-red-700 hover:to-rose-700 transition font-medium shadow-md">
+                            🗑 Delete
+                          </button>
+                          <button onClick={() => handleUpdateSubmissionStatus(submission.id, 'approved', '', submission.student_id, submission.user_id)}
+                            className="px-3 py-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition font-medium shadow-md">
+                            ✅ Approve
+                          </button>
+                          <button onClick={() => { const remarks = prompt('Enter revision notes for the student:'); if (remarks !== null) handleUpdateSubmissionStatus(submission.id, 'needs-revision', remarks, submission.student_id, submission.user_id); }}
+                            className="px-3 py-2 bg-amber-500 text-white text-xs rounded-lg hover:bg-amber-600 transition font-medium shadow-md">
+                            ✏️ Revise
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               );
