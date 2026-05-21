@@ -94,6 +94,44 @@ export default function AdminDashboard() {
     password: '',
     confirmPassword: ''
   });
+  const handlePrint = async (submission: any) => {
+    const full = await fetchFullSubmission(submission);
+    const formData = full?.form_data || {};
+    if (formData.is_paper_form || formData.scanned_pdf_url || formData.scanned_pdf_urls) {
+      const urls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
+      if (urls.length > 0) {
+        // Open PDF in new window and trigger print
+        urls.forEach((url: string) => {
+          const win = window.open(getViewableUrl(url), '_blank');
+          if (win) setTimeout(() => win.print(), 1500);
+        });
+        return;
+      }
+    }
+    printSubmission(full);
+  };
+
+  const handleExportPDF = async (submission: any) => {
+    const full = await fetchFullSubmission(submission);
+    const formData = full?.form_data || {};
+    if (formData.is_paper_form || formData.scanned_pdf_url || formData.scanned_pdf_urls) {
+      const urls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
+      if (urls.length > 0) {
+        // Download the PDF directly
+        urls.forEach((url: string, i: number) => {
+          const cleanUrl = url.startsWith('GDOCS:') ? url.replace('GDOCS:', '') : url;
+          const a = document.createElement('a');
+          a.href = cleanUrl;
+          a.download = `${full.full_name || 'form'}_${i + 1}.pdf`;
+          a.target = '_blank';
+          a.click();
+        });
+        return;
+      }
+    }
+    exportSubmissionPDF(full);
+  };
+
   // Smart local state updaters — avoid full DB reload after every action
   const localDeleteSubmission = (id: string) => {
     setSubmissions(prev => prev.filter(s => s.id !== id));
@@ -2465,13 +2503,13 @@ export default function AdminDashboard() {
                         ✏️ Edit
                       </button>
                       <button
-                        onClick={async () => { const full = await fetchFullSubmission(submission); printSubmission(full); }}
+                        onClick={async () => { await handlePrint(submission); }}
                         className="px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs rounded-lg hover:from-purple-700 hover:to-indigo-700 transition font-medium shadow-md"
                       >
                         🖨️ Print
                       </button>
                       <button
-                        onClick={async () => { const full = await fetchFullSubmission(submission); exportSubmissionPDF(full); }}
+                        onClick={async () => { await handleExportPDF(submission); }}
                         className="px-3 py-2 bg-gradient-to-r from-red-600 to-pink-600 text-white text-xs rounded-lg hover:from-red-700 hover:to-pink-700 transition font-medium shadow-md"
                       >
                         📄 PDF
@@ -2567,8 +2605,8 @@ export default function AdminDashboard() {
                       <div className="col-span-2 flex items-center justify-center gap-1 flex-wrap">
                         <button onClick={() => handleView(submission)} className="px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition">View</button>
                         <button onClick={() => handleEdit(submission)} className="px-2 py-1 bg-amber-500 text-white text-xs rounded hover:bg-amber-600 transition">Edit</button>
-                        <button onClick={async () => { const full = await fetchFullSubmission(submission); printSubmission(full); }} className="px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 transition">Print</button>
-                        <button onClick={async () => { const full = await fetchFullSubmission(submission); exportSubmissionPDF(full); }} className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition">PDF</button>
+                        <button onClick={async () => { await handlePrint(submission); }} className="px-2 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 transition">Print</button>
+                        <button onClick={async () => { await handleExportPDF(submission); }} className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition">PDF</button>
                         <button onClick={() => handleDelete(submission.id, submission.full_name)} className="px-2 py-1 bg-red-700 text-white text-xs rounded hover:bg-red-800 transition">Del</button>
                         <button onClick={() => handleUpdateSubmissionStatus(submission.id, 'approved', '', submission.student_id, submission.user_id)} className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition">✅</button>
                         <button onClick={() => { const r = prompt('Revision notes:'); if (r !== null) handleUpdateSubmissionStatus(submission.id, 'needs-revision', r, submission.student_id, submission.user_id); }} className="px-2 py-1 bg-amber-500 text-white text-xs rounded hover:bg-amber-600 transition">✏️</button>
