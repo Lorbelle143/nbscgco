@@ -1,6 +1,7 @@
 /**
- * Document upload utility using Cloudinary
- * Uploads PDFs as images (fl_attachment:false) for direct browser viewing
+ * Document upload utility
+ * Uploads PDFs to Cloudinary as 'image' type for public access
+ * Then converts URL to use fl_attachment:false for browser viewing
  */
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || '';
@@ -24,40 +25,31 @@ export async function uploadDocument(
   formData.append('file', file);
   formData.append('upload_preset', UPLOAD_PRESET);
   formData.append('folder', folder);
-  // Use 'image' resource type — Cloudinary converts PDF pages to images
-  // This gives a publicly accessible URL without authentication
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
-    // Try image upload first (converts PDF to viewable format)
+    // Upload as image — Cloudinary accepts PDFs as images and makes them public
     const res = await fetch(
       `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
       { method: 'POST', body: formData, signal: controller.signal }
     );
 
     if (!res.ok) {
-      // Fallback to raw upload
-      const formData2 = new FormData();
-      formData2.append('file', file);
-      formData2.append('upload_preset', UPLOAD_PRESET);
-      formData2.append('folder', folder);
-      const res2 = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`,
-        { method: 'POST', body: formData2 }
-      );
-      if (!res2.ok) {
-        const err = await res2.json();
-        throw new Error(err.error?.message || 'PDF upload failed');
-      }
-      const data2 = await res2.json();
-      // Return with Google Docs viewer prefix for raw URLs
-      return `GDOCS:${data2.secure_url}`;
+      const err = await res.json();
+      throw new Error(err.error?.message || 'PDF upload failed. Make sure your Cloudinary preset allows PDF files.');
     }
 
     const data = await res.json();
-    return data.secure_url as string;
+    // Cloudinary returns a .jpg URL for PDFs — change extension back to .pdf
+    // and use fl_attachment:false to make it viewable in browser
+    let url: string = data.secure_url;
+    // Replace the extension with .pdf for proper viewing
+    url = url.replace(/\.[^.]+$/, '.pdf');
+    // Change /image/upload/ to /image/upload/fl_attachment:false/ for inline viewing
+    url = url.replace('/image/upload/', '/image/upload/fl_attachment:false/');
+    return url;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -75,11 +67,10 @@ export async function uploadMultipleDocuments(
   return urls;
 }
 
-// Helper to get viewable URL
 export function getViewableUrl(url: string): string {
-  if (url.startsWith('GDOCS:')) {
-    const actualUrl = url.replace('GDOCS:', '');
-    return `https://docs.google.com/viewer?url=${encodeURIComponent(actualUrl)}`;
-  }
-  return url;
+  if (!url) return '';
+  // Already a proper Cloudinary URL
+  if (url.includes('cloudinary.com')) return url;
+  // Google Docs viewer fallback
+  return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}`;
 }
