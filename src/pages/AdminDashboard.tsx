@@ -595,7 +595,8 @@ export default function AdminDashboard() {
 
   // Fetch full submission with form_data only when needed for view/print/PDF
   const fetchFullSubmission = async (submission: any) => {
-    // Always fetch from DB to get latest form_data including PDF URLs
+    // Use cached form_data if available — only fetch from DB if missing
+    if (submission.form_data && Object.keys(submission.form_data).length > 0) return submission;
     try {
       const client = supabaseAdmin || supabase;
       const { data } = await client
@@ -603,7 +604,7 @@ export default function AdminDashboard() {
         .select('form_data, photo_url')
         .eq('id', submission.id)
         .single();
-      return { ...submission, form_data: data?.form_data || submission.form_data || {}, photo_url: data?.photo_url || submission.photo_url };
+      return { ...submission, form_data: data?.form_data || {}, photo_url: data?.photo_url || submission.photo_url };
     } catch {
       return submission;
     }
