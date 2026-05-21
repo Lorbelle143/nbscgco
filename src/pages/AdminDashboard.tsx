@@ -97,16 +97,12 @@ export default function AdminDashboard() {
   const handlePrint = async (submission: any) => {
     const full = await fetchFullSubmission(submission);
     const formData = full?.form_data || {};
-    if (formData.is_paper_form || formData.scanned_pdf_url || formData.scanned_pdf_urls) {
-      const urls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
-      if (urls.length > 0) {
-        // Open PDF in new window and trigger print
-        urls.forEach((url: string) => {
-          const win = window.open(getViewableUrl(url), '_blank');
-          if (win) setTimeout(() => win.print(), 1500);
-        });
-        return;
-      }
+    const pdfUrls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
+    if (pdfUrls.length > 0) {
+      setPdfViewerUrls(pdfUrls);
+      setPdfViewerTitle(full.full_name || 'Paper Form');
+      setShowPdfViewer(true);
+      return;
     }
     printSubmission(full);
   };
@@ -114,19 +110,12 @@ export default function AdminDashboard() {
   const handleExportPDF = async (submission: any) => {
     const full = await fetchFullSubmission(submission);
     const formData = full?.form_data || {};
-    if (formData.is_paper_form || formData.scanned_pdf_url || formData.scanned_pdf_urls) {
-      const urls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
-      if (urls.length > 0) {
-        // Open each PDF in new tab with delay to avoid popup blocker
-        urls.forEach((url: string, i: number) => {
-          setTimeout(() => {
-            const cleanUrl = url.startsWith('GDOCS:') ? url.replace('GDOCS:', '') : url;
-            window.open(cleanUrl, '_blank');
-          }, i * 1000);
-        });
-        toast.success(`📄 Opening ${urls.length} PDF(s)...`);
-        return;
-      }
+    const pdfUrls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
+    if (pdfUrls.length > 0) {
+      setPdfViewerUrls(pdfUrls);
+      setPdfViewerTitle(full.full_name || 'Paper Form');
+      setShowPdfViewer(true);
+      return;
     }
     exportSubmissionPDF(full);
   };
@@ -606,7 +595,7 @@ export default function AdminDashboard() {
 
   // Fetch full submission with form_data only when needed for view/print/PDF
   const fetchFullSubmission = async (submission: any) => {
-    if (submission.form_data) return submission; // already loaded
+    // Always fetch from DB to get latest form_data including PDF URLs
     try {
       const client = supabaseAdmin || supabase;
       const { data } = await client
@@ -614,7 +603,7 @@ export default function AdminDashboard() {
         .select('form_data, photo_url')
         .eq('id', submission.id)
         .single();
-      return { ...submission, form_data: data?.form_data || {}, photo_url: data?.photo_url || submission.photo_url };
+      return { ...submission, form_data: data?.form_data || submission.form_data || {}, photo_url: data?.photo_url || submission.photo_url };
     } catch {
       return submission;
     }
@@ -623,15 +612,12 @@ export default function AdminDashboard() {
   const handleView = async (submission: any) => {
     const full = await fetchFullSubmission(submission);
     const formData = full?.form_data || {};
-    if (formData.is_paper_form || formData.scanned_pdf_url || formData.scanned_pdf_urls) {
-      const urls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
-      if (urls.length > 0) {
-        // Show in modal viewer — no popup blocker issues
-        setPdfViewerUrls(urls);
-        setPdfViewerTitle(full.full_name || 'Paper Form');
-        setShowPdfViewer(true);
-        return;
-      }
+    const pdfUrls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
+    if (pdfUrls.length > 0) {
+      setPdfViewerUrls(pdfUrls);
+      setPdfViewerTitle(full.full_name || 'Paper Form');
+      setShowPdfViewer(true);
+      return;
     }
     setSelectedSubmission(full);
     setModalMode('view');
