@@ -158,7 +158,9 @@ export default function AdminDashboard() {
   const [resetListView, setResetListView] = useState<'grid' | 'list'>('grid');
   const [resetFilter, setResetFilter] = useState<'all' | 'pending' | 'resolved'>('all');
 
-  // Paper form import state
+  const [pdfViewerUrls, setPdfViewerUrls] = useState<string[]>([]);
+  const [showPdfViewer, setShowPdfViewer] = useState(false);
+  const [pdfViewerTitle, setPdfViewerTitle] = useState('');
   const [showPaperImport, setShowPaperImport] = useState(false);
   const [paperImportData, setPaperImportData] = useState({
     full_name: '',
@@ -621,24 +623,13 @@ export default function AdminDashboard() {
   const handleView = async (submission: any) => {
     const full = await fetchFullSubmission(submission);
     const formData = full?.form_data || {};
-    // If it's a paper form with scanned PDF(s)
     if (formData.is_paper_form || formData.scanned_pdf_url || formData.scanned_pdf_urls) {
       const urls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
       if (urls.length > 0) {
-        if (urls.length === 1) {
-          window.open(getViewableUrl(urls[0]), '_blank');
-        } else {
-          // Show all PDFs — open first one, show links for the rest
-          const win = window.open(getViewableUrl(urls[0]), '_blank');
-          // For additional PDFs, show a toast with links
-          toast.success(
-            `📄 Opened PDF 1 of ${urls.length}. Click PDF button to download all.`,
-          );
-          // Open remaining after a delay to avoid popup blocker
-          urls.slice(1).forEach((url, i) => {
-            setTimeout(() => window.open(getViewableUrl(url), '_blank'), (i + 1) * 1500);
-          });
-        }
+        // Show in modal viewer — no popup blocker issues
+        setPdfViewerUrls(urls);
+        setPdfViewerTitle(full.full_name || 'Paper Form');
+        setShowPdfViewer(true);
         return;
       }
     }
@@ -3403,6 +3394,48 @@ export default function AdminDashboard() {
         </main>
       </div>
     </div>
+
+    {/* PDF Viewer Modal for Paper Forms */}
+    {showPdfViewer && (
+      <div className="fixed inset-0 bg-black/80 z-50 flex flex-col">
+        {/* Header */}
+        <div className="bg-gray-900 px-6 py-3 flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="text-white font-bold">📄 {pdfViewerTitle}</span>
+            <span className="text-gray-400 text-sm">{pdfViewerUrls.length} PDF{pdfViewerUrls.length > 1 ? 's' : ''}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {pdfViewerUrls.map((url, i) => (
+              <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded-lg transition">
+                ⬇️ Download PDF {pdfViewerUrls.length > 1 ? i + 1 : ''}
+              </a>
+            ))}
+            <button onClick={() => setShowPdfViewer(false)}
+              className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs rounded-lg transition ml-2">
+              ✕ Close
+            </button>
+          </div>
+        </div>
+        {/* PDF iframes */}
+        <div className={`flex-1 flex ${pdfViewerUrls.length > 1 ? 'gap-1' : ''} overflow-hidden`}>
+          {pdfViewerUrls.map((url, i) => (
+            <div key={i} className="flex-1 flex flex-col">
+              {pdfViewerUrls.length > 1 && (
+                <div className="bg-gray-800 text-gray-300 text-xs text-center py-1">
+                  PDF {i + 1} of {pdfViewerUrls.length}
+                </div>
+              )}
+              <iframe
+                src={url}
+                className="flex-1 w-full border-0"
+                title={`PDF ${i + 1}`}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
 
     {/* Global Confirm Dialog */}
     <ConfirmDialog
