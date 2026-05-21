@@ -26,7 +26,7 @@ import { exportSubmissionPDF, exportAllSubmissionsPDF } from '../utils/pdfUtils'
 import { logAudit } from '../utils/auditLog';
 import { notifyPasswordReset, notifySubmissionStatus } from '../utils/emailNotify';
 import { uploadToCloudinary } from '../utils/cloudinary';
-import { uploadDocument, uploadMultipleDocuments } from '../utils/storageUpload';
+import { uploadDocument, uploadMultipleDocuments, getViewableUrl } from '../utils/storageUpload';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 
@@ -583,18 +583,17 @@ export default function AdminDashboard() {
 
   const handleView = async (submission: any) => {
     const full = await fetchFullSubmission(submission);
-    // If it's a paper form with scanned PDF(s), open them
-    if (full?.form_data?.is_paper_form) {
-      const urls: string[] = full.form_data.scanned_pdf_urls || (full.form_data.scanned_pdf_url ? [full.form_data.scanned_pdf_url] : []);
+    const formData = full?.form_data || {};
+    // If it's a paper form with scanned PDF(s)
+    if (formData.is_paper_form || formData.scanned_pdf_url || formData.scanned_pdf_urls) {
+      const urls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
       if (urls.length > 0) {
         urls.forEach((url: string) => {
-          // Use Google Docs viewer for Cloudinary raw PDFs
-          const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}`;
-          window.open(viewerUrl, '_blank');
+          window.open(getViewableUrl(url), '_blank');
         });
         if (urls.length > 1) toast.success(`Opened ${urls.length} PDF(s) in new tabs`);
+        return;
       }
-      return;
     }
     setSelectedSubmission(full);
     setModalMode('view');

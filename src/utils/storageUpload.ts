@@ -1,6 +1,6 @@
 /**
  * Document upload utility using Cloudinary
- * PDFs uploaded as 'raw' type — publicly accessible via direct URL
+ * Uploads PDFs as images (fl_attachment:false) for direct browser viewing
  */
 
 const CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME || '';
@@ -24,31 +24,40 @@ export async function uploadDocument(
   formData.append('file', file);
   formData.append('upload_preset', UPLOAD_PRESET);
   formData.append('folder', folder);
+  // Use 'image' resource type — Cloudinary converts PDF pages to images
+  // This gives a publicly accessible URL without authentication
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 60000);
 
   try {
-    // Upload as 'raw' resource type for PDFs
+    // Try image upload first (converts PDF to viewable format)
     const res = await fetch(
-      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`,
+      `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,
       { method: 'POST', body: formData, signal: controller.signal }
     );
 
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.error?.message || 'PDF upload failed');
+      // Fallback to raw upload
+      const formData2 = new FormData();
+      formData2.append('file', file);
+      formData2.append('upload_preset', UPLOAD_PRESET);
+      formData2.append('folder', folder);
+      const res2 = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/raw/upload`,
+        { method: 'POST', body: formData2 }
+      );
+      if (!res2.ok) {
+        const err = await res2.json();
+        throw new Error(err.error?.message || 'PDF upload failed');
+      }
+      const data2 = await res2.json();
+      // Return with Google Docs viewer prefix for raw URLs
+      return `GDOCS:${data2.secure_url}`;
     }
 
     const data = await res.json();
-    
-    // Convert to a viewable URL format
-    // Replace /raw/upload/ with /image/upload/ and add fl_attachment:false
-    // This makes it viewable in browser instead of downloading
-    const rawUrl: string = data.secure_url;
-    
-    // Return the raw URL — we'll use Google Docs viewer to display it
-    return rawUrl;
+    return data.secure_url as string;
   } finally {
     clearTimeout(timeoutId);
   }
@@ -64,4 +73,13 @@ export async function uploadMultipleDocuments(
     urls.push(url);
   }
   return urls;
+}
+
+// Helper to get viewable URL
+export function getViewableUrl(url: string): string {
+  if (url.startsWith('GDOCS:')) {
+    const actualUrl = url.replace('GDOCS:', '');
+    return `https://docs.google.com/viewer?url=${encodeURIComponent(actualUrl)}`;
+  }
+  return url;
 }
