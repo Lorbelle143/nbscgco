@@ -586,12 +586,13 @@ export default function AdminDashboard() {
     // If it's a paper form with scanned PDF(s), open them
     if (full?.form_data?.is_paper_form) {
       const urls: string[] = full.form_data.scanned_pdf_urls || (full.form_data.scanned_pdf_url ? [full.form_data.scanned_pdf_url] : []);
-      if (urls.length === 1) {
-        window.open(urls[0], '_blank');
-      } else if (urls.length > 1) {
-        // Open all PDFs in new tabs
-        urls.forEach((url: string) => window.open(url, '_blank'));
-        toast.success(`Opened ${urls.length} PDF(s) in new tabs`);
+      if (urls.length > 0) {
+        // Use Google Docs viewer to display PDFs properly
+        urls.forEach((url: string) => {
+          const viewerUrl = `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=false`;
+          window.open(viewerUrl, '_blank');
+        });
+        if (urls.length > 1) toast.success(`Opened ${urls.length} PDF(s) in new tabs`);
       }
       return;
     }
