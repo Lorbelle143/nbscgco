@@ -847,9 +847,9 @@ export default function StudentDashboard() {
           <div className="flex flex-wrap gap-3 mt-2">
             {[
               { label: 'Profile Info', done: hasProfileInfo },
-              { label: 'Profile Picture', done: hasProfilePicture },
-              { label: 'Inventory Form', done: hasSubmission },
               { label: 'Mental Health', done: hasMentalHealth },
+              { label: 'Inventory Form', done: hasSubmission },
+              { label: 'Profile Picture', done: hasProfilePicture },
             ].map(item => (
               <span key={item.label} className={`text-xs flex items-center gap-1 ${item.done ? 'text-green-600' : 'text-gray-400'}`}>
                 {item.done ? '✓' : '○'} {item.label}
@@ -872,9 +872,9 @@ export default function StudentDashboard() {
             <div className="space-y-2">
               {[
                 { done: hasProfileInfo, label: 'Complete your profile info', action: () => setActiveView('edit-profile'), actionLabel: 'Edit Profile' },
-                { done: hasProfilePicture, label: 'Upload a profile picture', action: () => setActiveView('edit-profile'), actionLabel: 'Upload Photo' },
-                { done: hasSubmission, label: 'Submit your inventory form', action: () => navigate('/inventory-form'), actionLabel: 'Fill Form' },
                 { done: hasMentalHealth, label: 'Take the BSRS-5 mental health assessment', action: () => navigate('/mental-health-assessment'), actionLabel: 'Take Now' },
+                { done: hasSubmission, label: 'Submit your inventory form', action: () => navigate('/inventory-form'), actionLabel: 'Fill Form' },
+                { done: hasProfilePicture, label: 'Upload a profile picture', action: () => setActiveView('edit-profile'), actionLabel: 'Upload Photo' },
               ].map((step, i) => (
                 <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-lg ${step.done ? 'bg-green-50 border border-green-200' : 'bg-white border border-indigo-100'}`}>
                   <div className="flex items-center gap-2">
