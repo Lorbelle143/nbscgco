@@ -1552,6 +1552,29 @@ export default function AdminDashboard() {
 
             {/* Admin Avatar + Change Password */}
             <div className="flex items-center gap-2">
+              {/* Force sign out all students */}
+              <button
+                onClick={() => showConfirm(
+                  'Force Sign Out All Students',
+                  'This will sign out ALL students immediately. They will need to log in again. Continue?',
+                  async () => {
+                    closeConfirm();
+                    try {
+                      await supabase.rpc('sign_out_all_students');
+                      toast.success('✅ All students have been signed out');
+                    } catch (err: any) {
+                      toast.error('Failed: ' + err.message);
+                    }
+                  }
+                )}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg text-xs font-medium transition-all border border-red-200"
+                title="Force sign out all students to reduce IO"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Sign Out All
+              </button>
               {/* Refresh data button */}
               <button
                 onClick={() => { clearCache(); loadData(true); toast.success('🔄 Refreshing data...'); }}
