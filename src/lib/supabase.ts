@@ -19,7 +19,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     // Limit request timeout — prevents retry storm during maintenance
     fetch: (url: RequestInfo | URL, options?: RequestInit) => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeout = setTimeout(() => controller.abort(), 60000); // 60 second timeout
       return fetch(url, {
         ...options,
         signal: controller.signal,
