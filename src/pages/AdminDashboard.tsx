@@ -117,15 +117,14 @@ export default function AdminDashboard() {
     if (formData.is_paper_form || formData.scanned_pdf_url || formData.scanned_pdf_urls) {
       const urls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
       if (urls.length > 0) {
-        // Download the PDF directly
+        // Open each PDF in new tab with delay to avoid popup blocker
         urls.forEach((url: string, i: number) => {
-          const cleanUrl = url.startsWith('GDOCS:') ? url.replace('GDOCS:', '') : url;
-          const a = document.createElement('a');
-          a.href = cleanUrl;
-          a.download = `${full.full_name || 'form'}_${i + 1}.pdf`;
-          a.target = '_blank';
-          a.click();
+          setTimeout(() => {
+            const cleanUrl = url.startsWith('GDOCS:') ? url.replace('GDOCS:', '') : url;
+            window.open(cleanUrl, '_blank');
+          }, i * 1000);
         });
+        toast.success(`📄 Opening ${urls.length} PDF(s)...`);
         return;
       }
     }
@@ -626,10 +625,20 @@ export default function AdminDashboard() {
     if (formData.is_paper_form || formData.scanned_pdf_url || formData.scanned_pdf_urls) {
       const urls: string[] = formData.scanned_pdf_urls || (formData.scanned_pdf_url ? [formData.scanned_pdf_url] : []);
       if (urls.length > 0) {
-        urls.forEach((url: string) => {
-          window.open(getViewableUrl(url), '_blank');
-        });
-        if (urls.length > 1) toast.success(`Opened ${urls.length} PDF(s) in new tabs`);
+        if (urls.length === 1) {
+          window.open(getViewableUrl(urls[0]), '_blank');
+        } else {
+          // Show all PDFs — open first one, show links for the rest
+          const win = window.open(getViewableUrl(urls[0]), '_blank');
+          // For additional PDFs, show a toast with links
+          toast.success(
+            `📄 Opened PDF 1 of ${urls.length}. Click PDF button to download all.`,
+          );
+          // Open remaining after a delay to avoid popup blocker
+          urls.slice(1).forEach((url, i) => {
+            setTimeout(() => window.open(getViewableUrl(url), '_blank'), (i + 1) * 1500);
+          });
+        }
         return;
       }
     }
