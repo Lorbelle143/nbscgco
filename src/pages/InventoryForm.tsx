@@ -484,6 +484,36 @@ export default function InventoryForm() {
         setSubmitStatus('');
       }
 
+      // Upload signatures to Cloudinary if still base64 (fallback — background upload may have failed)
+      let studentSigUrl = formData.studentSignatureUrl;
+      let parentSigUrl = formData.parentSignatureUrl;
+
+      if (studentSigUrl && studentSigUrl.startsWith('data:')) {
+        setSubmitStatus('📤 Uploading student signature...');
+        try {
+          const blob = await fetch(studentSigUrl).then(r => r.blob());
+          const sigFile = new File([blob], 'student-signature.png', { type: blob.type });
+          studentSigUrl = await uploadToCloudinary(sigFile, 'nbsc-gco/signatures');
+        } catch {
+          // If upload fails, strip base64 to avoid bloating DB
+          studentSigUrl = '';
+        }
+        setSubmitStatus('');
+      }
+
+      if (parentSigUrl && parentSigUrl.startsWith('data:')) {
+        setSubmitStatus('📤 Uploading parent signature...');
+        try {
+          const blob = await fetch(parentSigUrl).then(r => r.blob());
+          const sigFile = new File([blob], 'parent-signature.png', { type: blob.type });
+          parentSigUrl = await uploadToCloudinary(sigFile, 'nbsc-gco/signatures');
+        } catch {
+          // If upload fails, strip base64 to avoid bloating DB
+          parentSigUrl = '';
+        }
+        setSubmitStatus('');
+      }
+
       setSubmitStatus('💾 Saving to database...');
 
       // Auto-fill guardian from parents if guardian fields are empty
@@ -509,6 +539,10 @@ export default function InventoryForm() {
         resolvedFormData.guardianEthnicity = parentEthnicity;
         resolvedFormData.guardianReligion = parentReligion;
       }
+
+      // Replace base64 signatures with Cloudinary URLs in resolvedFormData before saving
+      resolvedFormData.studentSignatureUrl = studentSigUrl;
+      resolvedFormData.parentSignatureUrl = parentSigUrl;
 
       // Base data without user_id (used for updates to avoid UUID issues)
       const baseData = {
@@ -2025,11 +2059,17 @@ export default function InventoryForm() {
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
+                          // Show local preview immediately
                           const reader = new FileReader();
                           reader.onload = (ev) => {
                             setFormData(prev => ({ ...prev, studentSignatureUrl: ev.target?.result as string }));
                           };
                           reader.readAsDataURL(file);
+                          // Upload to Cloudinary in background and replace base64 with URL
+                          try {
+                            const url = await uploadToCloudinary(file, 'nbsc-gco/signatures');
+                            setFormData(prev => ({ ...prev, studentSignatureUrl: url }));
+                          } catch { /* keep base64 preview, will retry on submit */ }
                         }}
                         className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200"
                       />
@@ -2050,11 +2090,17 @@ export default function InventoryForm() {
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
                           if (!file) return;
+                          // Show local preview immediately
                           const reader = new FileReader();
                           reader.onload = (ev) => {
                             setFormData(prev => ({ ...prev, parentSignatureUrl: ev.target?.result as string }));
                           };
                           reader.readAsDataURL(file);
+                          // Upload to Cloudinary in background and replace base64 with URL
+                          try {
+                            const url = await uploadToCloudinary(file, 'nbsc-gco/signatures');
+                            setFormData(prev => ({ ...prev, parentSignatureUrl: url }));
+                          } catch { /* keep base64 preview, will retry on submit */ }
                         }}
                         className="block w-full text-sm text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200"
                       />
