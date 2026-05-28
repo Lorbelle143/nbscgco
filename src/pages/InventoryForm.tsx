@@ -495,10 +495,16 @@ export default function InventoryForm() {
           const sigFile = new File([blob], 'student-signature.png', { type: blob.type });
           studentSigUrl = await uploadToCloudinary(sigFile, 'nbsc-gco/signatures');
         } catch {
-          // If upload fails, strip base64 to avoid bloating DB
+          // If upload fails, ALWAYS strip base64 — never save raw base64 to DB
+          console.warn('Student signature upload failed — stripping base64');
           studentSigUrl = '';
         }
         setSubmitStatus('');
+      }
+
+      // Final safety check — never allow base64 to reach the DB
+      if (studentSigUrl && studentSigUrl.startsWith('data:')) {
+        studentSigUrl = '';
       }
 
       if (parentSigUrl && parentSigUrl.startsWith('data:')) {
@@ -508,10 +514,16 @@ export default function InventoryForm() {
           const sigFile = new File([blob], 'parent-signature.png', { type: blob.type });
           parentSigUrl = await uploadToCloudinary(sigFile, 'nbsc-gco/signatures');
         } catch {
-          // If upload fails, strip base64 to avoid bloating DB
+          // If upload fails, ALWAYS strip base64 — never save raw base64 to DB
+          console.warn('Parent signature upload failed — stripping base64');
           parentSigUrl = '';
         }
         setSubmitStatus('');
+      }
+
+      // Final safety check — never allow base64 to reach the DB
+      if (parentSigUrl && parentSigUrl.startsWith('data:')) {
+        parentSigUrl = '';
       }
 
       setSubmitStatus('💾 Saving to database...');
@@ -544,6 +556,18 @@ export default function InventoryForm() {
       resolvedFormData.studentSignatureUrl = studentSigUrl;
       resolvedFormData.parentSignatureUrl = parentSigUrl;
 
+      // ⚠️ NUCLEAR SAFETY: Strip ALL base64 from every field in form_data
+      // This prevents any base64 from ever reaching the DB regardless of source
+      const cleanFormData: Record<string, any> = {};
+      for (const [key, value] of Object.entries(resolvedFormData)) {
+        if (typeof value === 'string' && value.startsWith('data:')) {
+          console.warn(`Stripped base64 from field: ${key}`);
+          cleanFormData[key] = ''; // strip it
+        } else {
+          cleanFormData[key] = value;
+        }
+      }
+
       // Base data without user_id (used for updates to avoid UUID issues)
       const baseData = {
         student_id: resolvedFormData.idNo,
@@ -552,7 +576,7 @@ export default function InventoryForm() {
         year_level: resolvedFormData.programYear.split(' ')[0] || '',
         contact_number: resolvedFormData.mobilePhone,
         photo_url: photoUrl || '',
-        form_data: { ...resolvedFormData },
+        form_data: cleanFormData,
         google_form_response_id: '',
       };
 
