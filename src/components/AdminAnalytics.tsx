@@ -44,10 +44,25 @@ export default function AdminAnalytics({ submissions, students }: AnalyticsProps
       courseCount[course] = (courseCount[course] || 0) + 1;
     });
 
-    // Year level distribution
+    // Year level distribution — parse from course field since year_level may store "Bachelor"
     const yearCount: Record<string, number> = {};
     filtered.forEach(s => {
-      const year = s.year_level || 'Unknown';
+      const course = (s.course || '').toLowerCase();
+      let year = 'Unknown';
+      if (course.includes('fifth year') || course.includes('5th year')) year = '5th Year';
+      else if (course.includes('fourth year') || course.includes('4th year')) year = '4th Year';
+      else if (course.includes('third year') || course.includes('3rd year')) year = '3rd Year';
+      else if (course.includes('second year') || course.includes('2nd year')) year = '2nd Year';
+      else if (course.includes('first year') || course.includes('1st year')) year = '1st Year';
+      else {
+        // fallback to year_level field
+        const yl = (s.year_level || '').toLowerCase();
+        if (yl.includes('first') || yl === '1' || yl.includes('1st')) year = '1st Year';
+        else if (yl.includes('second') || yl === '2' || yl.includes('2nd')) year = '2nd Year';
+        else if (yl.includes('third') || yl === '3' || yl.includes('3rd')) year = '3rd Year';
+        else if (yl.includes('fourth') || yl === '4' || yl.includes('4th')) year = '4th Year';
+        else year = s.year_level || 'Unknown';
+      }
       yearCount[year] = (yearCount[year] || 0) + 1;
     });
 
@@ -199,14 +214,12 @@ export default function AdminAnalytics({ submissions, students }: AnalyticsProps
         </h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { label: '1st Year', keys: ['1', 'First', '1st'], color: 'from-blue-400 to-blue-600', emoji: '🎓' },
-            { label: '2nd Year', keys: ['2', 'Second', '2nd'], color: 'from-green-400 to-green-600', emoji: '📚' },
-            { label: '3rd Year', keys: ['3', 'Third', '3rd'], color: 'from-amber-400 to-amber-600', emoji: '🏆' },
-            { label: '4th Year', keys: ['4', 'Fourth', '4th'], color: 'from-purple-400 to-purple-600', emoji: '🎯' },
-          ].map(({ label, keys, color, emoji }) => {
-            const count = Object.entries(analytics.yearCount)
-              .filter(([year]) => keys.some(k => year.toString().includes(k)))
-              .reduce((sum, [, c]) => sum + c, 0);
+            { label: '1st Year', key: '1st Year', color: 'from-blue-400 to-blue-600', emoji: '🎓' },
+            { label: '2nd Year', key: '2nd Year', color: 'from-green-400 to-green-600', emoji: '📚' },
+            { label: '3rd Year', key: '3rd Year', color: 'from-amber-400 to-amber-600', emoji: '🏆' },
+            { label: '4th Year', key: '4th Year', color: 'from-purple-400 to-purple-600', emoji: '🎯' },
+          ].map(({ label, key, color, emoji }) => {
+            const count = analytics.yearCount[key] || 0;
             const pct = analytics.totalSubmissions > 0
               ? ((count / analytics.totalSubmissions) * 100).toFixed(1)
               : '0';
