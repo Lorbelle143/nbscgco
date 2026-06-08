@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "name": "Daily Base64 Cleanup",
+  "description": "Runs the base64 cleanup script automatically when Kiro starts up to keep the database clean",
+  "version": "1",
+  "when": {
+    "type": "agentStop"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "node \"c:\\Users\\NBSC\\guide system\\nbscgco\\scripts\\clear-base64.mjs\""
+  },
+  "workspaceFolderName": "nbscgco",
+  "shortName": "daily-base64-cleanup"
+}

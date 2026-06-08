@@ -1,0 +1,14 @@
+{
+  "enabled": true,
+  "name": "Manual DB Backup",
+  "description": "Run this manually anytime to backup all database data to JSON files",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "node \"c:\\Users\\NBSC\\guide system\\nbscgco\\scripts\\backup-data.mjs\" && node \"c:\\Users\\NBSC\\guide system\\nbscgco\\scripts\\backup-submissions.mjs\"",
+    "timeout": 300
+  }
+}
