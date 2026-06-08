@@ -189,6 +189,39 @@ export default function AdminAnalytics({ submissions, students }: AnalyticsProps
         </div>
       </div>
 
+      {/* Year Level Breakdown Cards */}
+      <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+        <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+          <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          Students by Year Level
+        </h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { label: '1st Year', keys: ['1', 'First', '1st'], color: 'from-blue-400 to-blue-600', emoji: '🎓' },
+            { label: '2nd Year', keys: ['2', 'Second', '2nd'], color: 'from-green-400 to-green-600', emoji: '📚' },
+            { label: '3rd Year', keys: ['3', 'Third', '3rd'], color: 'from-amber-400 to-amber-600', emoji: '🏆' },
+            { label: '4th Year', keys: ['4', 'Fourth', '4th'], color: 'from-purple-400 to-purple-600', emoji: '🎯' },
+          ].map(({ label, keys, color, emoji }) => {
+            const count = Object.entries(analytics.yearCount)
+              .filter(([year]) => keys.some(k => year.toString().includes(k)))
+              .reduce((sum, [, c]) => sum + c, 0);
+            const pct = analytics.totalSubmissions > 0
+              ? ((count / analytics.totalSubmissions) * 100).toFixed(1)
+              : '0';
+            return (
+              <div key={label} className={`bg-gradient-to-br ${color} rounded-xl p-5 text-white shadow-md`}>
+                <div className="text-3xl mb-2">{emoji}</div>
+                <div className="text-3xl font-bold">{count}</div>
+                <div className="text-sm opacity-90 font-medium">{label}</div>
+                <div className="text-xs opacity-75 mt-1">{pct}% of submissions</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Course Distribution */}
