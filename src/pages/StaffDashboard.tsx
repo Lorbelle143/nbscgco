@@ -49,21 +49,33 @@ export default function StaffDashboard() {
 
   const loadData = async () => {
     try {
-      const [profilesResult, submissionsResult] = await Promise.all([
+      const [profilesResult] = await Promise.all([
         supabase
           .from('profiles')
           .select('id, email, full_name, student_id, created_at, last_login, profile_picture, profile_picture_url')
           .eq('role', 'student')
           .order('full_name', { ascending: true }),
-        supabase
+      ]);
+
+      // Paginate submissions — no hard limit, fetch all
+      let allSubmissions: any[] = [];
+      let from = 0;
+      const BATCH = 1000;
+      while (true) {
+        const { data, error } = await supabase
           .from('inventory_submissions')
           .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, photo_url, created_at')
           .order('created_at', { ascending: false })
-          .limit(500),
-      ]);
+          .range(from, from + BATCH - 1);
+        if (error) break;
+        if (!data || data.length === 0) break;
+        allSubmissions = [...allSubmissions, ...data];
+        if (data.length < BATCH) break;
+        from += BATCH;
+      }
 
       const studentsData = profilesResult.data || [];
-      const submissionsData = submissionsResult.data || [];
+      const submissionsData = allSubmissions;
 
       const studentsWithPhotos = studentsData.map(s => {
         const sub = submissionsData.find(x => x.student_id === s.student_id);
