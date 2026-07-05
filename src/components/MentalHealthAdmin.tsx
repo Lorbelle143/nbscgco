@@ -32,12 +32,26 @@ export default function MentalHealthAdmin() {
   const loadAssessments = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      // Get exact count first to handle > 1000 rows
+      const { count } = await supabase
         .from('mental_health_assessments')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      _cachedAssessments = data || [];
+        .select('*', { count: 'exact', head: true });
+
+      const pageSize = 1000;
+      const totalPages = Math.ceil((count ?? 0) / pageSize);
+      const allData: any[] = [];
+
+      for (let page = 0; page < totalPages; page++) {
+        const { data, error } = await supabase
+          .from('mental_health_assessments')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        if (error) throw error;
+        if (data) allData.push(...data);
+      }
+
+      _cachedAssessments = allData;
       fetchedRef.current = true;
       setAssessments(_cachedAssessments);
     } catch (error: any) {

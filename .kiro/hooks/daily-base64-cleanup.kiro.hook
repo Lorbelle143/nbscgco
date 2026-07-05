@@ -8,7 +8,7 @@
   },
   "then": {
     "type": "runCommand",
-    "command": "node \"c:\\Users\\NBSC\\guide system\\nbscgco\\scripts\\clear-base64.mjs\""
+    "command": "cd /d \"c:\\Users\\Lenovo\\Downloads\\nbscgco\" && node scripts\\clear-base64.mjs"
   },
   "workspaceFolderName": "nbscgco",
   "shortName": "daily-base64-cleanup"

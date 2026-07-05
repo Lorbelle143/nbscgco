@@ -10,6 +10,7 @@ interface AnalyticsProps {
 
 export default function AdminAnalytics({ submissions, students }: AnalyticsProps) {
   const [mentalHealthData, setMentalHealthData] = useState<any[]>([]);
+  const [mentalHealthTotal, setMentalHealthTotal] = useState<number>(0);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -19,11 +20,27 @@ export default function AdminAnalytics({ submissions, students }: AnalyticsProps
 
   const loadMentalHealthData = async () => {
     try {
-      const { data } = await supabase
+      // Get exact total count first (bypasses the default 1000-row limit)
+      const { count } = await supabase
         .from('mental_health_assessments')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setMentalHealthData(data || []);
+        .select('*', { count: 'exact', head: true });
+      setMentalHealthTotal(count ?? 0);
+
+      // Fetch all rows using pagination to avoid the 1000-row default limit
+      const pageSize = 1000;
+      const totalPages = Math.ceil((count ?? 0) / pageSize);
+      const allData: any[] = [];
+
+      for (let page = 0; page < totalPages; page++) {
+        const { data } = await supabase
+          .from('mental_health_assessments')
+          .select('risk_level, requires_counseling, having_suicidal_thoughts, total_score')
+          .order('created_at', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        if (data) allData.push(...data);
+      }
+
+      setMentalHealthData(allData);
     } catch (error) {
       console.error('Error loading mental health data:', error);
     }
@@ -95,7 +112,7 @@ export default function AdminAnalytics({ submissions, students }: AnalyticsProps
 
     // Mental Health Analytics
     const mentalHealthStats = {
-      total: mentalHealthData.length,
+      total: mentalHealthTotal, // use exact count from Supabase, not data.length (which is capped at 1000)
       doingWell: mentalHealthData.filter(m => m.risk_level === 'doing-well').length,
       needSupport: mentalHealthData.filter(m => m.risk_level === 'need-support').length,
       immediateSupport: mentalHealthData.filter(m => m.risk_level === 'immediate-support').length,
@@ -117,7 +134,7 @@ export default function AdminAnalytics({ submissions, students }: AnalyticsProps
       pendingSubmissions: students.length - filtered.length,
       mentalHealthStats
     };
-  }, [submissions, students, mentalHealthData, dateFrom, dateTo]);
+  }, [submissions, students, mentalHealthData, mentalHealthTotal, dateFrom, dateTo]);
 
   const handlePrint = () => { exportAnalyticsPDF(analytics, submissions, students); };
 

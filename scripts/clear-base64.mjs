@@ -2,25 +2,6 @@
 // Run: node scripts/clear-base64.mjs
 
 import { createClient } from '@supabase/supabase-js';
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-
-// Manually read .env file
-const envPath = join(__dirname, '../.env');
-const envContent = readFileSync(envPath, 'utf-8');
-const env = {};
-for (const line of envContent.split('\n')) {
-  const trimmed = line.trim();
-  if (!trimmed || trimmed.startsWith('#')) continue;
-  const idx = trimmed.indexOf('=');
-  if (idx === -1) continue;
-  const key = trimmed.slice(0, idx).trim();
-  const val = trimmed.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
-  env[key] = val;
-}
 
 const SUPABASE_URL = 'https://fhucquqqneuwcwrbymen.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZodWNxdXFxbmV1d2N3cmJ5bWVuIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDMyNjk2NywiZXhwIjoyMDg5OTAyOTY3fQ._jEXtO6GiLkpvTRX2S7jSPTR5ww9_QLJcsTex73JF64';

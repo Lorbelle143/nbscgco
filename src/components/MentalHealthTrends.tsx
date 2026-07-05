@@ -12,16 +12,31 @@ export default function MentalHealthTrends() {
 
   useEffect(() => {
     if (fetchedRef.current) return;
-    supabase
-      .from('mental_health_assessments')
-      .select('*')
-      .order('created_at', { ascending: true })
-      .then(({ data: d }) => { 
-        _cachedTrendsData = d || [];
-        fetchedRef.current = true;
-        setData(_cachedTrendsData); 
-        setLoading(false); 
-      });
+    const fetchAll = async () => {
+      // Get exact count first to handle > 1000 rows
+      const { count } = await supabase
+        .from('mental_health_assessments')
+        .select('*', { count: 'exact', head: true });
+
+      const pageSize = 1000;
+      const totalPages = Math.ceil((count ?? 0) / pageSize);
+      const allData: any[] = [];
+
+      for (let page = 0; page < totalPages; page++) {
+        const { data: d } = await supabase
+          .from('mental_health_assessments')
+          .select('*')
+          .order('created_at', { ascending: true })
+          .range(page * pageSize, (page + 1) * pageSize - 1);
+        if (d) allData.push(...d);
+      }
+
+      _cachedTrendsData = allData;
+      fetchedRef.current = true;
+      setData(_cachedTrendsData);
+      setLoading(false);
+    };
+    fetchAll();
   }, []);
 
   const trends = useMemo(() => {
