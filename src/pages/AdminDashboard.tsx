@@ -36,6 +36,7 @@ export default function AdminDashboard() {
   useSessionTimeout();
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
+  const [mentalHealthCount, setMentalHealthCount] = useState<number>(0);
   const [adminProfile, setAdminProfile] = useState<any>(null);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -170,6 +171,11 @@ export default function AdminDashboard() {
     const deferredLoads = setTimeout(() => {
       loadAdminProfile();
       loadResetRequests();
+      // Fetch mental health total count (uses count-only query, no row limit issue)
+      supabase
+        .from('mental_health_assessments')
+        .select('*', { count: 'exact', head: true })
+        .then(({ count }) => { if (count !== null) setMentalHealthCount(count); });
     }, 1500);
 
     // Close notifications on outside click
@@ -1278,6 +1284,11 @@ export default function AdminDashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span className="font-medium text-sm">Mental Health</span>
+            {mentalHealthCount > 0 && (
+              <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${viewMode === 'mental-health' ? 'bg-white/20 text-white' : 'bg-orange-100 text-orange-700'}`}>
+                {mentalHealthCount}
+              </span>
+            )}
           </button>
 
           <button
