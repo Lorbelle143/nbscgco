@@ -1023,9 +1023,14 @@ export default function AdminDashboard() {
     const headers = ['Student ID', 'Last Name', 'First Name', 'Course', 'Year Level', 'Contact Number', 'Submitted Date & Time'];
 
     const sortedForExport = [...filteredAndSortedSubmissions].sort((a, b) => {
-      const lastNameA = (a.form_data?.lastName || a.full_name.split(' ')[0] || '').toLowerCase();
-      const lastNameB = (b.form_data?.lastName || b.full_name.split(' ')[0] || '').toLowerCase();
-      return lastNameA.localeCompare(lastNameB);
+      const extractLast = (s: any) => {
+        if (s.form_data?.lastName) return s.form_data.lastName.toLowerCase();
+        const name = (s.full_name || '').trim();
+        if (name.includes(',')) return name.split(',')[0].trim().toLowerCase();
+        const parts = name.split(' ');
+        return (parts[parts.length - 1] || '').toLowerCase();
+      };
+      return extractLast(a).localeCompare(extractLast(b));
     });
 
     const rows = sortedForExport.map(s => {
@@ -1127,11 +1132,16 @@ export default function AdminDashboard() {
   });
 
   // Helper: extract last name from full_name for sorting
-  // Tries form_data.lastName first, then takes the last word of full_name
+  // full_name is stored as "LastName, FirstName MI." format
+  // Tries form_data.lastName first, then takes the part before the first comma
   const getLastName = (student: any): string => {
     const sub = submissions.find(s => s.student_id === student.student_id);
     if (sub?.form_data?.lastName) return sub.form_data.lastName.toLowerCase();
-    const parts = (student.full_name || '').trim().split(' ');
+    const name = (student.full_name || '').trim();
+    // "Dela Cruz, Juan M." → "Dela Cruz"
+    if (name.includes(',')) return name.split(',')[0].trim().toLowerCase();
+    // fallback: last word
+    const parts = name.split(' ');
     return (parts[parts.length - 1] || '').toLowerCase();
   };
 
@@ -1172,10 +1182,12 @@ export default function AdminDashboard() {
 
   const filteredAndSortedSubmissions = [...filteredSubmissions].sort((a, b) => {
     if (sortBy === 'lastName') {
-      // Use form_data.lastName if available, otherwise take last word of full_name
+      // full_name is stored as "LastName, FirstName MI." — split on comma
       const getSubLastName = (s: any) => {
         if (s.form_data?.lastName) return s.form_data.lastName.toLowerCase();
-        const parts = (s.full_name || '').trim().split(' ');
+        const name = (s.full_name || '').trim();
+        if (name.includes(',')) return name.split(',')[0].trim().toLowerCase();
+        const parts = name.split(' ');
         return (parts[parts.length - 1] || '').toLowerCase();
       };
       return getSubLastName(a).localeCompare(getSubLastName(b));
@@ -1384,6 +1396,21 @@ export default function AdminDashboard() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
             </svg>
             <span className="font-medium text-sm">User Management</span>
+          </button>
+
+          <button
+            onClick={() => { setViewMode('pending-accounts'); loadProfiles(); }}
+            className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${viewMode === 'pending-accounts' ? 'bg-orange-600 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="font-medium text-sm">Pending Accounts</span>
+            {students.filter(s => s.student_id?.startsWith('PENDING-')).length > 0 && (
+              <span className={`ml-auto text-xs font-bold px-2 py-0.5 rounded-full ${viewMode === 'pending-accounts' ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
+                {students.filter(s => s.student_id?.startsWith('PENDING-')).length}
+              </span>
+            )}
           </button>
 
           <button
@@ -1677,6 +1704,132 @@ export default function AdminDashboard() {
             <AppointmentScheduler role="admin" />
           </div>
         )}
+
+        {/* Pending Accounts View */}
+        {viewMode === 'pending-accounts' && (() => {
+          const pendingStudents = students.filter(s => s.student_id?.startsWith('PENDING-'));
+          const [assigningId, setAssigningId] = React.useState<string | null>(null);
+          const [newIds, setNewIds] = React.useState<Record<string, string>>({});
+
+          const handleAssignId = async (student: any) => {
+            const newId = newIds[student.id]?.trim();
+            if (!newId) { toast.error('Please enter a student ID'); return; }
+            setAssigningId(student.id);
+            try {
+              const { error } = await supabase
+                .from('profiles')
+                .update({ student_id: newId })
+                .eq('id', student.id);
+              if (error) throw error;
+              // Also update any inventory submissions linked to the old PENDING- id
+              await supabase
+                .from('inventory_submissions')
+                .update({ student_id: newId })
+                .eq('student_id', student.student_id);
+              localUpdateStudent(student.id, { student_id: newId });
+              setNewIds(prev => { const n = { ...prev }; delete n[student.id]; return n; });
+              toast.success(`✅ Student ID assigned: ${newId}`);
+              await logAudit('update', 'profiles', student.id, `Assigned student ID ${newId} to ${student.full_name} (was ${student.student_id})`);
+            } catch (e: any) {
+              toast.error('Failed: ' + e.message);
+            } finally {
+              setAssigningId(null);
+            }
+          };
+
+          return (
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <span className="text-2xl">⏳</span>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-amber-800">Pending Account Approvals</h2>
+                    <p className="text-sm text-amber-700 mt-1">
+                      These students self-registered but haven't been assigned a real Student ID yet.
+                      Assign their official ID to activate their account.
+                    </p>
+                    <p className="text-sm font-bold text-amber-800 mt-2">
+                      {pendingStudents.length} pending {pendingStudents.length === 1 ? 'account' : 'accounts'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {pendingStudents.length === 0 ? (
+                <div className="bg-white rounded-2xl shadow p-16 text-center">
+                  <div className="text-6xl mb-4">✅</div>
+                  <h3 className="text-xl font-bold text-gray-700">All caught up!</h3>
+                  <p className="text-gray-500 mt-2">No pending accounts to review.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {pendingStudents.map(student => (
+                    <div key={student.id} className="bg-white border-2 border-amber-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+                      {/* Student info */}
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden">
+                          {student.profile_picture_url
+                            ? <img src={student.profile_picture_url} alt="" className="w-full h-full object-cover" />
+                            : (student.full_name?.charAt(0) || '?')}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-gray-800 truncate">{student.full_name}</p>
+                          <p className="text-xs text-gray-500 truncate">{student.email}</p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 mb-4 text-xs text-gray-500">
+                        <div className="flex justify-between">
+                          <span>Temp ID</span>
+                          <span className="font-mono text-amber-700 font-semibold">{student.student_id}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Registered</span>
+                          <span>{new Date(student.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        </div>
+                        {student.last_login && (
+                          <div className="flex justify-between">
+                            <span>Last Login</span>
+                            <span className="text-green-600">{new Date(student.last_login).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Assign ID input */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-semibold text-gray-700">Assign Official Student ID</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. 2024-00123"
+                          value={newIds[student.id] || ''}
+                          onChange={e => setNewIds(prev => ({ ...prev, [student.id]: e.target.value }))}
+                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-400"
+                          onKeyDown={e => { if (e.key === 'Enter') handleAssignId(student); }}
+                        />
+                        <button
+                          onClick={() => handleAssignId(student)}
+                          disabled={assigningId === student.id || !newIds[student.id]?.trim()}
+                          className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-sm font-semibold hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 transition shadow-sm"
+                        >
+                          {assigningId === student.id ? '⏳ Assigning...' : '✅ Assign ID & Activate'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(student.id, student.full_name)}
+                          className="w-full py-2 text-xs text-red-500 hover:text-red-700 transition font-medium"
+                        >
+                          🗑 Reject & Delete Account
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Staff Management View */}
         {viewMode === 'staff-management' && (

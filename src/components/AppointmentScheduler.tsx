@@ -46,6 +46,8 @@ export default function AppointmentScheduler({ role }: Props) {
     notes: '',
   });
 
+  const [takenSlots, setTakenSlots] = useState<string[]>([]);
+
   useEffect(() => {
     loadAppointments();
     if (role === 'student') loadProfile();
@@ -90,6 +92,21 @@ export default function AppointmentScheduler({ role }: Props) {
 
     setSaving(true);
     try {
+      // Check for double-booking — same date and time already taken
+      const { data: existing } = await supabase
+        .from('appointments')
+        .select('id, full_name')
+        .eq('appointment_date', form.appointment_date)
+        .eq('appointment_time', form.appointment_time)
+        .in('status', ['pending', 'approved'])
+        .limit(1);
+
+      if (existing && existing.length > 0) {
+        toast.error(`That time slot is already taken. Please choose a different time.`);
+        setSaving(false);
+        return;
+      }
+
       const { error } = await supabase.from('appointments').insert({
         student_user_id: user!.id,
         student_id: profile.student_id,
@@ -380,7 +397,21 @@ export default function AppointmentScheduler({ role }: Props) {
                   <input type="date"
                     min={new Date().toISOString().split('T')[0]}
                     value={form.appointment_date}
-                    onChange={e => setForm(f => ({ ...f, appointment_date: e.target.value }))}
+                    onChange={async e => {
+                      const date = e.target.value;
+                      setForm(f => ({ ...f, appointment_date: date }));
+                      // Load taken slots for this date
+                      if (date) {
+                        const { data } = await supabase
+                          .from('appointments')
+                          .select('appointment_time')
+                          .eq('appointment_date', date)
+                          .in('status', ['pending', 'approved']);
+                        setTakenSlots((data || []).map((a: any) => a.appointment_time));
+                      } else {
+                        setTakenSlots([]);
+                      }
+                    }}
                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
                   <p className="text-xs text-gray-400 mt-1">Mon–Fri only</p>
                 </div>
@@ -389,10 +420,18 @@ export default function AppointmentScheduler({ role }: Props) {
                   <select value={form.appointment_time}
                     onChange={e => setForm(f => ({ ...f, appointment_time: e.target.value }))}
                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 bg-white">
-                    {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00'].map(t => (
-                      <option key={t} value={t}>{formatTime(t)}</option>
-                    ))}
+                    {['08:00','08:30','09:00','09:30','10:00','10:30','11:00','11:30','13:00','13:30','14:00','14:30','15:00','15:30','16:00'].map(t => {
+                      const isTaken = takenSlots.includes(t);
+                      return (
+                        <option key={t} value={t} disabled={isTaken}>
+                          {formatTime(t)}{isTaken ? ' — Taken' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
+                  {takenSlots.length > 0 && (
+                    <p className="text-xs text-amber-600 mt-1">⚠ Some slots are already booked for this date</p>
+                  )}
                 </div>
               </div>
               <div>

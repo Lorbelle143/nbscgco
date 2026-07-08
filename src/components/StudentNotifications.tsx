@@ -16,7 +16,7 @@ interface Props {
   onUnreadCountChange?: (count: number) => void;
 }
 
-export default function StudentNotifications({ userId, onUnreadCountChange }: Props) {
+export default function StudentNotifications({ userId, studentId, onUnreadCountChange }: Props) {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,12 +26,20 @@ export default function StudentNotifications({ userId, onUnreadCountChange }: Pr
 
   const load = async () => {
     try {
-      const { data } = await supabase
+      let query = supabase
         .from('student_notifications')
         .select('*')
-        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(20);
+
+      // Filter by user_id if available, fallback to student_id
+      if (userId) {
+        query = query.eq('user_id', userId);
+      } else if (studentId) {
+        query = query.eq('student_id', studentId);
+      }
+
+      const { data } = await query;
       setNotifications(data || []);
       const unread = (data || []).filter((n: any) => !n.is_read).length;
       onUnreadCountChange?.(unread);

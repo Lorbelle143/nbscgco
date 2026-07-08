@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { supabase } from '../lib/supabase';
@@ -13,6 +13,63 @@ import StudentNotifications from '../components/StudentNotifications';
 import { uploadToCloudinary } from '../utils/cloudinary';
 import { MentalHealthAssessmentCard } from '../components/MentalHealthAssessmentCard';
 import AppointmentScheduler from '../components/AppointmentScheduler';
+
+// ConsentStatusCard â€” inline component (reads from consent_records table)
+function ConsentStatusCard({ studentId }: { studentId: string | undefined }) {
+  const [consent, setConsent] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!studentId) { setLoading(false); return; }
+    supabase
+      .from('consent_records')
+      .select('status, signed_at, notes')
+      .eq('student_id', studentId)
+      .maybeSingle()
+      .then(({ data }) => { setConsent(data); setLoading(false); });
+  }, [studentId]);
+
+  if (loading) return null;
+
+  const status = consent?.status || 'pending';
+  const config: Record<string, { icon: string; color: string; bg: string; border: string; title: string; desc: string }> = {
+    signed: {
+      icon: 'âœ…', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200',
+      title: 'Informed Consent Signed',
+      desc: consent?.signed_at
+        ? `Signed on ${new Date(consent.signed_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}`
+        : 'Your consent has been recorded by the Guidance Office.',
+    },
+    declined: {
+      icon: 'âœ—', color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200',
+      title: 'Informed Consent Declined',
+      desc: 'You have declined the informed consent. Please visit the Guidance Office if you wish to reconsider.',
+    },
+    pending: {
+      icon: 'â³', color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200',
+      title: 'Informed Consent Pending',
+      desc: 'Your informed consent form has not been signed yet. Please visit the Guidance and Counseling Office to sign the consent form before your counseling session.',
+    },
+  };
+  const cfg = config[status] || config.pending;
+
+  return (
+    <div className={`rounded-xl border-2 ${cfg.bg} ${cfg.border} p-5`}>
+      <div className="flex items-start gap-3">
+        <span className="text-2xl flex-shrink-0">{cfg.icon}</span>
+        <div className="flex-1">
+          <p className={`font-bold text-sm ${cfg.color}`}>{cfg.title}</p>
+          <p className={`text-sm mt-0.5 ${cfg.color} opacity-80`}>{cfg.desc}</p>
+          {consent?.notes && (
+            <p className={`text-xs mt-2 ${cfg.color} opacity-70`}>
+              <span className="font-semibold">Note from counselor:</span> {consent.notes}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function StudentDashboard() {
   const { user, signOut } = useAuthStore();
@@ -140,7 +197,7 @@ export default function StudentDashboard() {
       const cached = getCachedStudentSubmissions(user.id);
       if (cached.length > 0) {
         setSubmissions(cached);
-        toast.error(`⚠️ Offline mode — showing cached data from ${getCacheAge()}`);
+        toast.error(`âš ï¸ Offline mode â€” showing cached data from ${getCacheAge()}`);
       } else {
         toast.error('Failed to load submissions');
       }
@@ -207,7 +264,7 @@ export default function StudentDashboard() {
     lastUpdated: submissions[0] ? new Date(submissions[0].created_at) : null
   };
 
-  // Profile completeness — 3 components: profile info, profile picture, inventory form submission
+  // Profile completeness â€” 3 components: profile info, profile picture, inventory form submission
   // Each component is worth 1/3 of the total (33.3% each)
   const hasProfileInfo = !!(profile?.full_name && profile?.student_id && profile?.email);
   const hasProfilePicture = !!(profile?.profile_picture || profile?.profile_picture_url);
@@ -416,7 +473,7 @@ export default function StudentDashboard() {
                             <div>
                               <p className="text-sm font-medium text-gray-800">Inventory Form Pending</p>
                               <p className="text-xs text-gray-500">You haven't submitted your inventory form yet</p>
-                              <button onClick={() => { setShowNotifications(false); navigate('/inventory-form'); }} className="text-xs text-blue-600 hover:underline mt-1">Fill out now →</button>
+                              <button onClick={() => { setShowNotifications(false); navigate('/inventory-form'); }} className="text-xs text-blue-600 hover:underline mt-1">Fill out now â†’</button>
                             </div>
                           </div>
                         </div>
@@ -432,7 +489,7 @@ export default function StudentDashboard() {
                             <div>
                               <p className="text-sm font-medium text-gray-800">Mental Health Assessment</p>
                               <p className="text-xs text-gray-500">You haven't taken the BSRS-5 assessment yet</p>
-                              <button onClick={() => { setShowNotifications(false); setActiveView('mental-health'); }} className="text-xs text-blue-600 hover:underline mt-1">Take assessment →</button>
+                              <button onClick={() => { setShowNotifications(false); setActiveView('mental-health'); }} className="text-xs text-blue-600 hover:underline mt-1">Take assessment â†’</button>
                             </div>
                           </div>
                         </div>
@@ -467,7 +524,7 @@ export default function StudentDashboard() {
         {/* Content Area - Scrollable */}
         <main className="flex-1 overflow-y-auto p-8">
 
-        {/* ── NEW FORM VIEW ── */}
+        {/* â”€â”€ NEW FORM VIEW â”€â”€ */}
         {activeView === 'new-form' && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
             <div className="bg-white rounded-2xl shadow-xl p-10 max-w-md w-full text-center">
@@ -484,7 +541,7 @@ export default function StudentDashboard() {
                     onClick={() => navigate(`/inventory-form?edit=${submissions[0].id}`)}
                     className="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white py-3 rounded-xl font-semibold hover:from-amber-600 hover:to-orange-600 transition shadow-md mb-3"
                   >
-                    ✏️ Edit My Submission
+                    âœï¸ Edit My Submission
                   </button>
                   <button
                     onClick={() => setActiveView('dashboard')}
@@ -514,7 +571,7 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* ── MENTAL HEALTH VIEW ── */}
+        {/* â”€â”€ MENTAL HEALTH VIEW â”€â”€ */}
         {activeView === 'mental-health' && (
           <div className="max-w-3xl mx-auto space-y-6">
             {/* Consent Status Card */}
@@ -571,10 +628,10 @@ export default function StudentDashboard() {
                     const score = a.total_score ?? 0;
                     const hasSuicidalThoughts = (a.having_suicidal_thoughts ?? 0) > 0;
                     const risk = hasSuicidalThoughts || score >= 14
-                      ? { label: 'Immediate Support', color: 'red', icon: '🚨' }
+                      ? { label: 'Immediate Support', color: 'red', icon: 'ðŸš¨' }
                       : score >= 11
-                      ? { label: 'Need Support', color: 'yellow', icon: '⚠️' }
-                      : { label: 'Doing Well', color: 'green', icon: '✅' };
+                      ? { label: 'Need Support', color: 'yellow', icon: 'âš ï¸' }
+                      : { label: 'Doing Well', color: 'green', icon: 'âœ…' };
                     const SCORE_LABELS = ['Never', 'Rarely', 'Sometimes', 'Often', 'Always'];
                     const handlePrintAssessment = () => {
                       const win = window.open('', '_blank');
@@ -586,7 +643,7 @@ export default function StudentDashboard() {
                       const scoreColor = (hasSuicidalThoughts || score >= 14) ? '#dc2626' : score >= 11 ? '#ea580c' : '#16a34a';
                       win.document.write(`<!DOCTYPE html><html lang="en"><head>
                         <meta charset="UTF-8"/>
-                        <title>BSRS-5 Result — ${profile?.full_name}</title>
+                        <title>BSRS-5 Result â€” ${profile?.full_name}</title>
                         <style>
                           *{box-sizing:border-box;margin:0;padding:0}
                           body{font-family:'Segoe UI',Arial,sans-serif;background:#f8fafc;color:#1e293b;padding:0}
@@ -652,24 +709,24 @@ export default function StudentDashboard() {
                             <div class="logo-box">GCO</div>
                             <div>
                               <div class="school-name">NORTHERN BUKIDNON STATE COLLEGE</div>
-                              <div class="office-name">Kihare, Manolo Fortich, Bukidnon · gco@nbsc.edu.ph</div>
+                              <div class="office-name">Kihare, Manolo Fortich, Bukidnon Â· gco@nbsc.edu.ph</div>
                             </div>
                           </div>
                           <div class="doc-title">Mental Health Assessment Result</div>
-                          <div class="doc-subtitle">Brief Symptom Rating Scale (BSRS-5) · Official Record</div>
+                          <div class="doc-subtitle">Brief Symptom Rating Scale (BSRS-5) Â· Official Record</div>
                         </div>
 
                         <div class="body">
-                          <button class="print-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+                          <button class="print-btn" onclick="window.print()">ðŸ–¨ï¸ Print / Save as PDF</button>
 
                           <div class="info-card">
                             <div class="info-item">
                               <div class="info-label">Student Name</div>
-                              <div class="info-value">${profile?.full_name || '—'}</div>
+                              <div class="info-value">${profile?.full_name || 'â€”'}</div>
                             </div>
                             <div class="info-item">
                               <div class="info-label">Student ID</div>
-                              <div class="info-value">${profile?.student_id || '—'}</div>
+                              <div class="info-value">${profile?.student_id || 'â€”'}</div>
                             </div>
                             <div class="info-item">
                               <div class="info-label">Date Assessed</div>
@@ -716,10 +773,10 @@ export default function StudentDashboard() {
                                   <td>${SCORE_LABELS[v as number]}</td>
                                 </tr>`).join('')}
                               <tr class="suicidal-row">
-                                <td class="q-num">⚠</td>
+                                <td class="q-num">âš </td>
                                 <td>Having suicidal thoughts <em style="font-size:11px;font-weight:400">(not included in score)</em></td>
                                 <td><span class="score-pill ${a.having_suicidal_thoughts > 0 ? 'pill-4' : 'pill-0'}">${a.having_suicidal_thoughts}</span></td>
-                                <td>${SCORE_LABELS[a.having_suicidal_thoughts]}${a.having_suicidal_thoughts > 0 ? ' ⚠️' : ''}</td>
+                                <td>${SCORE_LABELS[a.having_suicidal_thoughts]}${a.having_suicidal_thoughts > 0 ? ' âš ï¸' : ''}</td>
                               </tr>
                             </tbody>
                           </table>
@@ -727,22 +784,22 @@ export default function StudentDashboard() {
                           <div class="guide">
                             <div class="guide-title">Scoring Guide</div>
                             <div class="guide-items">
-                              <div class="guide-item"><div class="guide-dot" style="background:#16a34a"></div> 0–10: Doing Well</div>
-                              <div class="guide-item"><div class="guide-dot" style="background:#ea580c"></div> 11–13: Need Support</div>
-                              <div class="guide-item"><div class="guide-dot" style="background:#dc2626"></div> 14–20: Immediate Support</div>
+                              <div class="guide-item"><div class="guide-dot" style="background:#16a34a"></div> 0â€“10: Doing Well</div>
+                              <div class="guide-item"><div class="guide-dot" style="background:#ea580c"></div> 11â€“13: Need Support</div>
+                              <div class="guide-item"><div class="guide-dot" style="background:#dc2626"></div> 14â€“20: Immediate Support</div>
                               <div class="guide-item"><div class="guide-dot" style="background:#9f1239"></div> Any suicidal thoughts: Immediate Support</div>
                             </div>
                           </div>
 
                           ${score >= 11 || a.having_suicidal_thoughts > 0 ? `
                           <div style="background:#fff1f2;border:2px solid #fca5a5;border-radius:12px;padding:16px 20px;margin-bottom:20px">
-                            <div style="font-weight:700;color:#991b1b;margin-bottom:6px">⚠️ Action Required</div>
-                            <div style="font-size:13px;color:#7f1d1d">Please visit the <strong>Guidance and Counseling Office — SC Room 108</strong> at your earliest convenience. Your counselor has been notified.</div>
+                            <div style="font-weight:700;color:#991b1b;margin-bottom:6px">âš ï¸ Action Required</div>
+                            <div style="font-size:13px;color:#7f1d1d">Please visit the <strong>Guidance and Counseling Office â€” SC Room 108</strong> at your earliest convenience. Your counselor has been notified.</div>
                           </div>` : ''}
                         </div>
 
                         <div class="footer">
-                          <span>NBSC Guidance & Counseling Office · gco@nbsc.edu.ph · 09360363915</span>
+                          <span>NBSC Guidance & Counseling Office Â· gco@nbsc.edu.ph Â· 09360363915</span>
                           <span>Printed: ${new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' })}</span>
                         </div>
                       </div>
@@ -763,7 +820,7 @@ export default function StudentDashboard() {
                             <button onClick={handlePrintAssessment}
                               className="px-3 py-1.5 bg-blue-50 text-blue-600 text-xs rounded-lg hover:bg-blue-100 transition font-medium border border-blue-200"
                               title="Print / Download result">
-                              🖨️ Print
+                              ðŸ–¨ï¸ Print
                             </button>
                           </div>
                         </div>
@@ -780,7 +837,7 @@ export default function StudentDashboard() {
                             </span>
                           ))}
                           <span className={`px-2 py-0.5 rounded font-semibold ${a.having_suicidal_thoughts > 0 ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'}`}>
-                            Suicidal: {a.having_suicidal_thoughts}{a.having_suicidal_thoughts > 0 ? ' ⚠️' : ''}
+                            Suicidal: {a.having_suicidal_thoughts}{a.having_suicidal_thoughts > 0 ? ' âš ï¸' : ''}
                           </span>
                         </div>
                       </div>
@@ -792,19 +849,19 @@ export default function StudentDashboard() {
           </div>
         )}
 
-        {/* ── APPOINTMENTS VIEW ── */}
+        {/* â”€â”€ APPOINTMENTS VIEW â”€â”€ */}
         {activeView === 'appointments' && (
           <div className="p-6 max-w-5xl mx-auto w-full">
             <AppointmentScheduler role="student" />
           </div>
         )}
 
-        {/* ── EDIT PROFILE VIEW ── */}
+        {/* â”€â”€ EDIT PROFILE VIEW â”€â”€ */}
         {activeView === 'edit-profile' && (
           <EditProfileInline profile={profile} userId={user?.id} onSaved={(updated) => { setProfile(updated); setActiveView('dashboard'); }} />
         )}
 
-        {/* ── DASHBOARD VIEW ── */}
+        {/* â”€â”€ DASHBOARD VIEW â”€â”€ */}
         {activeView === 'dashboard' && (<>
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl shadow-xl p-8 mb-8 text-white">
           <div className="flex items-center justify-between">
@@ -820,7 +877,7 @@ export default function StudentDashboard() {
           </div>
         </div>
 
-        {/* Counseling Status Card — only show if student has a mental health assessment */}
+        {/* Counseling Status Card â€” only show if student has a mental health assessment */}
         {mentalHealthAssessments.length > 0 && profile?.student_id && (
           <CounselingStatusCard studentId={profile.student_id} />
         )}
@@ -852,20 +909,20 @@ export default function StudentDashboard() {
               { label: 'Profile Picture', done: hasProfilePicture },
             ].map(item => (
               <span key={item.label} className={`text-xs flex items-center gap-1 ${item.done ? 'text-green-600' : 'text-gray-400'}`}>
-                {item.done ? '✓' : '○'} {item.label}
+                {item.done ? 'âœ“' : 'â—‹'} {item.label}
               </span>
             ))}
           </div>
           <p className="text-xs text-gray-400 mt-1.5">
-            {completeness === 100 ? 'All done — your profile is complete!' : `${completedComponents} of 4 steps completed.`}
+            {completeness === 100 ? 'All done â€” your profile is complete!' : `${completedComponents} of 4 steps completed.`}
           </p>
         </div>
 
-        {/* Getting Started — only show when not all steps done */}
+        {/* Getting Started â€” only show when not all steps done */}
         {completeness < 100 && (
           <div className="bg-gradient-to-br from-indigo-50 to-blue-50 border border-indigo-200 rounded-xl p-5 mb-6">
             <div className="flex items-center gap-2 mb-4">
-              <span className="text-lg">🚀</span>
+              <span className="text-lg">ðŸš€</span>
               <h3 className="font-bold text-indigo-800 text-sm">Getting Started</h3>
               <span className="ml-auto text-xs text-indigo-500">{completedComponents}/4 done</span>
             </div>
@@ -879,13 +936,13 @@ export default function StudentDashboard() {
                 <div key={i} className={`flex items-center justify-between px-3 py-2 rounded-lg ${step.done ? 'bg-green-50 border border-green-200' : 'bg-white border border-indigo-100'}`}>
                   <div className="flex items-center gap-2">
                     <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 ${step.done ? 'bg-green-500 text-white' : 'bg-indigo-100 text-indigo-600'}`}>
-                      {step.done ? '✓' : i + 1}
+                      {step.done ? 'âœ“' : i + 1}
                     </span>
                     <span className={`text-xs ${step.done ? 'text-green-700 line-through' : 'text-gray-700'}`}>{step.label}</span>
                   </div>
                   {!step.done && (
                     <button onClick={step.action} className="text-xs text-indigo-600 font-semibold hover:underline flex-shrink-0 ml-2">
-                      {step.actionLabel} →
+                      {step.actionLabel} â†’
                     </button>
                   )}
                 </div>
@@ -1081,10 +1138,10 @@ export default function StudentDashboard() {
                     <div className="flex justify-between items-start mb-4">
                       {(() => {
                         const s = submission.submission_status;
-                        if (s === 'approved') return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-green-50 text-green-700 border-green-300">✅ Approved</span>;
-                        if (s === 'needs-revision') return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-red-50 text-red-700 border-red-300">✏️ Needs Revision</span>;
-                        if (s === 'under-review') return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-blue-50 text-blue-700 border-blue-300">🔍 Under Review</span>;
-                        return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-green-50 text-green-700 border-green-300">✅ Submitted</span>;
+                        if (s === 'approved') return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-green-50 text-green-700 border-green-300">âœ… Approved</span>;
+                        if (s === 'needs-revision') return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-red-50 text-red-700 border-red-300">âœï¸ Needs Revision</span>;
+                        if (s === 'under-review') return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-blue-50 text-blue-700 border-blue-300">ðŸ” Under Review</span>;
+                        return <span className="px-3 py-1.5 rounded-full text-xs font-bold border-2 bg-green-50 text-green-700 border-green-300">âœ… Submitted</span>;
                       })()}
                       <span className="text-xs text-gray-500 font-medium">
                         ID: {submission.student_id}
@@ -1331,9 +1388,9 @@ export default function StudentDashboard() {
 
                 const getRiskIcon = (level: string) => {
                   switch (level) {
-                    case 'immediate-support': return '🚨';
-                    case 'need-support': return '⚠️';
-                    default: return '✅';
+                    case 'immediate-support': return 'ðŸš¨';
+                    case 'need-support': return 'âš ï¸';
+                    default: return 'âœ…';
                   }
                 };
 
@@ -1380,7 +1437,7 @@ export default function StudentDashboard() {
                           rel="noopener noreferrer"
                           className="inline-flex items-center gap-1 px-3 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition w-full justify-center"
                         >
-                          📋 Appointment Form for Guidance
+                          ðŸ“‹ Appointment Form for Guidance
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                           </svg>
@@ -1428,7 +1485,7 @@ export default function StudentDashboard() {
                           <p className="text-gray-600 mb-1">Suicidal thoughts</p>
                           <p className={`font-bold ${assessment.having_suicidal_thoughts > 0 ? 'text-red-600' : 'text-gray-800'}`}>
                             {assessment.having_suicidal_thoughts}/4
-                            {assessment.having_suicidal_thoughts > 0 && ' ⚠️'}
+                            {assessment.having_suicidal_thoughts > 0 && ' âš ï¸'}
                           </p>
                         </div>
                       </div>
@@ -1497,9 +1554,9 @@ export default function StudentDashboard() {
 
                       const getRiskIcon = (level: string) => {
                         switch (level) {
-                          case 'immediate-support': return '🚨';
-                          case 'need-support': return '⚠️';
-                          default: return '✅';
+                          case 'immediate-support': return 'ðŸš¨';
+                          case 'need-support': return 'âš ï¸';
+                          default: return 'âœ…';
                         }
                       };
 
@@ -1523,7 +1580,7 @@ export default function StudentDashboard() {
                           <td className="px-4 py-3 text-center">
                             {assessment.requires_counseling ? (
                               <div className="flex flex-col items-center gap-1">
-                                <span className="text-red-600 font-bold text-sm">⚠️ Required</span>
+                                <span className="text-red-600 font-bold text-sm">âš ï¸ Required</span>
                                 <a
                                   href="https://docs.google.com/forms/d/1HETdNws8TmJq6i7AgjmXrzJB7UbBjdNf6sK7ad6ZT3k/viewform"
                                   target="_blank"
@@ -1554,7 +1611,7 @@ export default function StudentDashboard() {
                               onClick={() => navigate(`/mental-health-assessment?edit=${assessment.id}`)}
                               className="px-4 py-2 bg-gradient-to-r from-indigo-600 to-blue-600 text-white text-sm font-medium rounded-lg hover:from-indigo-700 hover:to-blue-700 transition"
                             >
-                              ✏️ Edit
+                              âœï¸ Edit
                             </button>
                           </td>
                         </tr>
@@ -1581,63 +1638,6 @@ export default function StudentDashboard() {
   );
 }
 
-// View Submission Modal Component
-function ConsentStatusCard({ studentId }: { studentId: string | undefined }) {
-  const [consent, setConsent] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!studentId) { setLoading(false); return; }
-    supabase
-      .from('consent_records')
-      .select('status, signed_at, notes')
-      .eq('student_id', studentId)
-      .maybeSingle()
-      .then(({ data }) => { setConsent(data); setLoading(false); });
-  }, [studentId]);
-
-  if (loading) return null;
-
-  const status = consent?.status || 'pending';
-  const config: Record<string, { icon: string; color: string; bg: string; border: string; title: string; desc: string }> = {
-    signed: {
-      icon: '✅', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200',
-      title: 'Informed Consent Signed',
-      desc: consent?.signed_at
-        ? `Signed on ${new Date(consent.signed_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}`
-        : 'Your consent has been recorded by the Guidance Office.',
-    },
-    declined: {
-      icon: '✗', color: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200',
-      title: 'Informed Consent Declined',
-      desc: 'You have declined the informed consent. Please visit the Guidance Office if you wish to reconsider.',
-    },
-    pending: {
-      icon: '⏳', color: 'text-yellow-700', bg: 'bg-yellow-50', border: 'border-yellow-200',
-      title: 'Informed Consent Pending',
-      desc: 'Your informed consent form has not been signed yet. Please visit the Guidance and Counseling Office to sign the consent form before your counseling session.',
-    },
-  };
-  const cfg = config[status] || config.pending;
-
-  return (
-    <div className={`rounded-xl border-2 ${cfg.bg} ${cfg.border} p-5`}>
-      <div className="flex items-start gap-3">
-        <span className="text-2xl flex-shrink-0">{cfg.icon}</span>
-        <div className="flex-1">
-          <p className={`font-bold text-sm ${cfg.color}`}>{cfg.title}</p>
-          <p className={`text-sm mt-0.5 ${cfg.color} opacity-80`}>{cfg.desc}</p>
-          {consent?.notes && (
-            <p className={`text-xs mt-2 ${cfg.color} opacity-70`}>
-              <span className="font-semibold">Note from counselor:</span> {consent.notes}
-            </p>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function CounselingStatusCard({ studentId }: { studentId: string }) {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -1657,16 +1657,16 @@ function CounselingStatusCard({ studentId }: { studentId: string }) {
 
   const cfg: Record<string, { icon: string; color: string; bg: string; border: string; title: string; desc: string }> = {
     scheduled: {
-      icon: '📅', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200',
+      icon: 'ðŸ“…', color: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200',
       title: 'Counseling Session Scheduled',
       desc: 'Your counseling session has been scheduled. Please visit the Guidance and Counseling Office at your earliest convenience.',
     },    'in-progress': {
-      icon: '🔄', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200',
+      icon: 'ðŸ”„', color: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200',
       title: 'Counseling Session In Progress',
       desc: 'Your counseling session is currently in progress. Please continue to cooperate with your counselor.',
     },
     completed: {
-      icon: '✅', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200',
+      icon: 'âœ…', color: 'text-green-700', bg: 'bg-green-50', border: 'border-green-200',
       title: 'Counseling Session Completed',
       desc: data.counseled_at
         ? `Your counseling session was completed on ${new Date(data.counseled_at).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}.`
@@ -1695,7 +1695,7 @@ function CounselingStatusCard({ studentId }: { studentId: string }) {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition shadow-sm"
             >
-              📋 Book Appointment — Guidance Office
+              ðŸ“‹ Book Appointment â€” Guidance Office
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
               </svg>
@@ -1847,7 +1847,7 @@ function ViewSubmissionModal({ submission, onClose }: any) {
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center z-10 rounded-t-2xl">
           <h2 className="text-xl font-bold text-gray-800">Submission Details</h2>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700 text-xl transition">×</button>
+          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-700 text-xl transition">Ã—</button>
         </div>
 
         <div className="p-6">
@@ -1856,7 +1856,7 @@ function ViewSubmissionModal({ submission, onClose }: any) {
             <div className="w-32 h-32 sm:w-40 sm:h-40 bg-gray-200 rounded-xl overflow-hidden flex-shrink-0 border-2 border-white shadow-md mx-auto sm:mx-0">
               {submission.photo_url
                 ? <img src={submission.photo_url} alt="Student" className="w-full h-full object-cover" />
-                : <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">👤</div>
+                : <div className="w-full h-full flex items-center justify-center text-gray-400 text-4xl">ðŸ‘¤</div>
               }
             </div>
             <div className="flex-1 grid grid-cols-2 gap-3">
