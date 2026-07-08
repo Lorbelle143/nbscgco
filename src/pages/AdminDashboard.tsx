@@ -30,6 +30,137 @@ import { uploadMultipleDocuments } from '../utils/storageUpload';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 
+// ── Pending Accounts View ─────────────────────────────────────────────────────
+function PendingAccountsView({
+  students,
+  onAssigned,
+  onDelete,
+}: {
+  students: any[];
+  onAssigned: (studentId: string, newId: string) => void;
+  onDelete: (id: string, name: string) => void;
+}) {
+  const toast = useToastContext();
+  const pendingStudents = students.filter(s => s.student_id?.startsWith('PENDING-'));
+  const [assigningId, setAssigningId] = useState<string | null>(null);
+  const [newIds, setNewIds] = useState<Record<string, string>>({});
+
+  const handleAssignId = async (student: any) => {
+    const newId = newIds[student.id]?.trim();
+    if (!newId) { toast.error('Please enter a student ID'); return; }
+    setAssigningId(student.id);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ student_id: newId })
+        .eq('id', student.id);
+      if (error) throw error;
+      await supabase
+        .from('inventory_submissions')
+        .update({ student_id: newId })
+        .eq('student_id', student.student_id);
+      onAssigned(student.id, newId);
+      setNewIds(prev => { const n = { ...prev }; delete n[student.id]; return n; });
+      toast.success(`✅ Student ID assigned: ${newId}`);
+      await logAudit('update', 'profiles', student.id, `Assigned student ID ${newId} to ${student.full_name} (was ${student.student_id})`);
+    } catch (e: any) {
+      toast.error('Failed: ' + e.message);
+    } finally {
+      setAssigningId(null);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-6">
+        <div className="flex items-start gap-4">
+          <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+            <span className="text-2xl">⏳</span>
+          </div>
+          <div>
+            <h2 className="text-xl font-bold text-amber-800">Pending Account Approvals</h2>
+            <p className="text-sm text-amber-700 mt-1">
+              These students self-registered but haven't been assigned a real Student ID yet.
+              Assign their official ID to activate their account.
+            </p>
+            <p className="text-sm font-bold text-amber-800 mt-2">
+              {pendingStudents.length} pending {pendingStudents.length === 1 ? 'account' : 'accounts'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {pendingStudents.length === 0 ? (
+        <div className="bg-white rounded-2xl shadow p-16 text-center">
+          <div className="text-6xl mb-4">✅</div>
+          <h3 className="text-xl font-bold text-gray-700">All caught up!</h3>
+          <p className="text-gray-500 mt-2">No pending accounts to review.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {pendingStudents.map(student => (
+            <div key={student.id} className="bg-white border-2 border-amber-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden">
+                  {student.profile_picture_url
+                    ? <img src={student.profile_picture_url} alt="" className="w-full h-full object-cover" />
+                    : (student.full_name?.charAt(0) || '?')}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-bold text-gray-800 truncate">{student.full_name}</p>
+                  <p className="text-xs text-gray-500 truncate">{student.email}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2 mb-4 text-xs text-gray-500">
+                <div className="flex justify-between">
+                  <span>Temp ID</span>
+                  <span className="font-mono text-amber-700 font-semibold">{student.student_id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Registered</span>
+                  <span>{new Date(student.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                </div>
+                {student.last_login && (
+                  <div className="flex justify-between">
+                    <span>Last Login</span>
+                    <span className="text-green-600">{new Date(student.last_login).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-gray-700">Assign Official Student ID</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 2024-00123"
+                  value={newIds[student.id] || ''}
+                  onChange={e => setNewIds(prev => ({ ...prev, [student.id]: e.target.value }))}
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-400"
+                  onKeyDown={e => { if (e.key === 'Enter') handleAssignId(student); }}
+                />
+                <button
+                  onClick={() => handleAssignId(student)}
+                  disabled={assigningId === student.id || !newIds[student.id]?.trim()}
+                  className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-sm font-semibold hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 transition shadow-sm"
+                >
+                  {assigningId === student.id ? '⏳ Assigning...' : '✅ Assign ID & Activate'}
+                </button>
+                <button
+                  onClick={() => onDelete(student.id, student.full_name)}
+                  className="w-full py-2 text-xs text-red-500 hover:text-red-700 transition font-medium"
+                >
+                  🗑 Reject & Delete Account
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AdminDashboard() {
   const { signOut, user } = useAuthStore();
   const toast = useToastContext();
@@ -1706,130 +1837,13 @@ export default function AdminDashboard() {
         )}
 
         {/* Pending Accounts View */}
-        {viewMode === 'pending-accounts' && (() => {
-          const pendingStudents = students.filter(s => s.student_id?.startsWith('PENDING-'));
-          const [assigningId, setAssigningId] = React.useState<string | null>(null);
-          const [newIds, setNewIds] = React.useState<Record<string, string>>({});
-
-          const handleAssignId = async (student: any) => {
-            const newId = newIds[student.id]?.trim();
-            if (!newId) { toast.error('Please enter a student ID'); return; }
-            setAssigningId(student.id);
-            try {
-              const { error } = await supabase
-                .from('profiles')
-                .update({ student_id: newId })
-                .eq('id', student.id);
-              if (error) throw error;
-              // Also update any inventory submissions linked to the old PENDING- id
-              await supabase
-                .from('inventory_submissions')
-                .update({ student_id: newId })
-                .eq('student_id', student.student_id);
-              localUpdateStudent(student.id, { student_id: newId });
-              setNewIds(prev => { const n = { ...prev }; delete n[student.id]; return n; });
-              toast.success(`✅ Student ID assigned: ${newId}`);
-              await logAudit('update', 'profiles', student.id, `Assigned student ID ${newId} to ${student.full_name} (was ${student.student_id})`);
-            } catch (e: any) {
-              toast.error('Failed: ' + e.message);
-            } finally {
-              setAssigningId(null);
-            }
-          };
-
-          return (
-            <div className="space-y-6">
-              {/* Header */}
-              <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-6">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <span className="text-2xl">⏳</span>
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-bold text-amber-800">Pending Account Approvals</h2>
-                    <p className="text-sm text-amber-700 mt-1">
-                      These students self-registered but haven't been assigned a real Student ID yet.
-                      Assign their official ID to activate their account.
-                    </p>
-                    <p className="text-sm font-bold text-amber-800 mt-2">
-                      {pendingStudents.length} pending {pendingStudents.length === 1 ? 'account' : 'accounts'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {pendingStudents.length === 0 ? (
-                <div className="bg-white rounded-2xl shadow p-16 text-center">
-                  <div className="text-6xl mb-4">✅</div>
-                  <h3 className="text-xl font-bold text-gray-700">All caught up!</h3>
-                  <p className="text-gray-500 mt-2">No pending accounts to review.</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {pendingStudents.map(student => (
-                    <div key={student.id} className="bg-white border-2 border-amber-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow">
-                      {/* Student info */}
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0 overflow-hidden">
-                          {student.profile_picture_url
-                            ? <img src={student.profile_picture_url} alt="" className="w-full h-full object-cover" />
-                            : (student.full_name?.charAt(0) || '?')}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-bold text-gray-800 truncate">{student.full_name}</p>
-                          <p className="text-xs text-gray-500 truncate">{student.email}</p>
-                        </div>
-                      </div>
-
-                      <div className="space-y-2 mb-4 text-xs text-gray-500">
-                        <div className="flex justify-between">
-                          <span>Temp ID</span>
-                          <span className="font-mono text-amber-700 font-semibold">{student.student_id}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Registered</span>
-                          <span>{new Date(student.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                        </div>
-                        {student.last_login && (
-                          <div className="flex justify-between">
-                            <span>Last Login</span>
-                            <span className="text-green-600">{new Date(student.last_login).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' })}</span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Assign ID input */}
-                      <div className="space-y-2">
-                        <label className="text-xs font-semibold text-gray-700">Assign Official Student ID</label>
-                        <input
-                          type="text"
-                          placeholder="e.g. 2024-00123"
-                          value={newIds[student.id] || ''}
-                          onChange={e => setNewIds(prev => ({ ...prev, [student.id]: e.target.value }))}
-                          className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-400"
-                          onKeyDown={e => { if (e.key === 'Enter') handleAssignId(student); }}
-                        />
-                        <button
-                          onClick={() => handleAssignId(student)}
-                          disabled={assigningId === student.id || !newIds[student.id]?.trim()}
-                          className="w-full py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg text-sm font-semibold hover:from-amber-600 hover:to-orange-600 disabled:opacity-50 transition shadow-sm"
-                        >
-                          {assigningId === student.id ? '⏳ Assigning...' : '✅ Assign ID & Activate'}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteUser(student.id, student.full_name)}
-                          className="w-full py-2 text-xs text-red-500 hover:text-red-700 transition font-medium"
-                        >
-                          🗑 Reject & Delete Account
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })()}
+        {viewMode === 'pending-accounts' && (
+          <PendingAccountsView
+            students={students}
+            onAssigned={(studentId, newId) => localUpdateStudent(studentId, { student_id: newId })}
+            onDelete={(id, name) => handleDeleteUser(id, name)}
+          />
+        )}
 
         {/* Staff Management View */}
         {viewMode === 'staff-management' && (
