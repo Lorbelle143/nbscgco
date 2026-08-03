@@ -29,6 +29,7 @@ import { uploadToCloudinary } from '../utils/cloudinary';
 import { uploadMultipleDocuments } from '../utils/storageUpload';
 import ConfirmDialog from '../components/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
+import * as XLSX from 'xlsx';
 
 // ── Pending Accounts View ─────────────────────────────────────────────────────
 function PendingAccountsView({
@@ -576,7 +577,7 @@ export default function AdminDashboard() {
         while (true) {
           const { data, error } = await client
             .from('inventory_submissions')
-            .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, created_at, updated_at, reviewed_at')
+            .select('id, user_id, student_id, full_name, course, year_level, contact_number, submission_status, admin_remarks, photo_url, form_data, created_at, updated_at, reviewed_at')
             .order('created_at', { ascending: false })
             .range(submissionsFrom, submissionsFrom + BATCH - 1);
           if (error) throw error;
@@ -1074,7 +1075,7 @@ export default function AdminDashboard() {
             student_id: formData.idNo,
             full_name: `${formData.firstName} ${formData.middleInitial} ${formData.lastName}`.trim(),
             course: formData.programYear,
-            year_level: formData.programYear.split(' ')[0] || '1',
+            year_level: formData.programYear.split(' - ')[1]?.trim() || formData.programYear.split(' ')[0] || '1',
             contact_number: formData.mobilePhone,
             photo_url: formData.photoUrl || '',
             form_data: formData,
@@ -1087,8 +1088,8 @@ export default function AdminDashboard() {
         // Build the full name from the form data
         const fullName = `${formData.firstName} ${formData.middleInitial} ${formData.lastName}`.trim();
         
-        // Extract year level from program year (e.g., "BSIT - First year" -> "First")
-        const yearLevel = formData.programYear.split(' ')[0] || '1';
+        // Extract year level from program year (e.g., "BSIT - 1st Year" -> "1st Year")
+        const yearLevel = formData.programYear.split(' - ')[1]?.trim() || formData.programYear.split(' ')[0] || '1';
         
         // Merge the new form data with existing form_data
         const existingFormData = selectedSubmission?.form_data || {};
@@ -1133,7 +1134,7 @@ export default function AdminDashboard() {
 
       setShowModal(false);
       // Refresh only the updated submission
-      const { data: updated } = await supabase.from('inventory_submissions').select('id,user_id,student_id,full_name,course,year_level,contact_number,submission_status,admin_remarks,photo_url,created_at,updated_at,reviewed_at').eq('id', selectedSubmission?.id).maybeSingle();
+      const { data: updated } = await supabase.from('inventory_submissions').select('id,user_id,student_id,full_name,course,year_level,contact_number,submission_status,admin_remarks,photo_url,form_data,created_at,updated_at,reviewed_at').eq('id', selectedSubmission?.id).maybeSingle();
       if (updated) localUpdateSubmission(updated.id, updated);
       else loadData();
     } catch (error: any) {
@@ -1151,7 +1152,7 @@ export default function AdminDashboard() {
       return str;
     };
 
-    const headers = ['Student ID', 'Last Name', 'First Name', 'Course', 'Year Level', 'Contact Number', 'Submitted Date & Time'];
+    const headers = ['Student ID', 'Last Name', 'First Name', 'Middle Initial', 'Sex', 'Course', 'Year Level', 'Contact Number', 'Submitted Date & Time'];
 
     const sortedForExport = [...filteredAndSortedSubmissions].sort((a, b) => {
       const extractLast = (s: any) => {
@@ -1165,14 +1166,21 @@ export default function AdminDashboard() {
     });
 
     const rows = sortedForExport.map(s => {
-      const formData = s.form_data || {};
+      const f = s.form_data || {};
       const dateTimeString = new Date(s.created_at).toLocaleString('en-US', {
         month: '2-digit', day: '2-digit', year: 'numeric',
         hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true
       });
       return [
-        s.student_id || '', formData.lastName || '', formData.firstName || '',
-        s.course || '', s.year_level || '', s.contact_number || '', dateTimeString
+        s.student_id || '',
+        f.lastName || '',
+        f.firstName || '',
+        f.middleInitial || '',
+        f.gender || '',
+        s.course || '',
+        s.year_level || '',
+        s.contact_number || f.mobilePhone || '',
+        dateTimeString,
       ].map(escapeCSV);
     });
 
@@ -1181,7 +1189,7 @@ export default function AdminDashboard() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `student_inventory_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `Student_Inventory_Form_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -1194,26 +1202,35 @@ export default function AdminDashboard() {
       if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
       return str;
     };
-    const headers = ['Student ID', 'Last Name', 'First Name', 'Course', 'Year Level', 'Contact Number', 'Submitted Date & Time'];
+    const headers = ['Student ID', 'Last Name', 'First Name', 'Middle Initial', 'Sex', 'Course', 'Year Level', 'Contact Number', 'Submitted Date & Time'];
     const rows = selected.map(s => {
       const f = s.form_data || {};
       const dt = new Date(s.created_at).toLocaleString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
-      return [s.student_id||'', f.lastName||'', f.firstName||'', s.course||'', s.year_level||'', s.contact_number||'', dt].map(escapeCSV);
+      return [
+        s.student_id || '',
+        f.lastName || '',
+        f.firstName || '',
+        f.middleInitial || '',
+        f.gender || '',
+        s.course || '',
+        s.year_level || '',
+        s.contact_number || f.mobilePhone || '',
+        dt,
+      ].map(escapeCSV);
     });
     const csv = '\uFEFF' + [headers.map(escapeCSV), ...rows].map(r => r.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `selected_students_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `Student_Inventory_Form_Selected_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
 
   const exportAllSubmissionsExcel = () => {
     if (filteredAndSortedSubmissions.length === 0) { toast.error('No submissions to export'); return; }
-    
-    // Build CSV with all submitted student inventory records
+
     const headers = ['#', 'Student ID', 'Last Name', 'First Name', 'Middle Initial', 'Sex', 'Course', 'Year Level', 'Contact Number', 'Email', 'Status', 'Admin Remarks', 'Submitted Date'];
     const rows = filteredAndSortedSubmissions.map((s, i) => {
       const f = s.form_data || {};
@@ -1223,30 +1240,36 @@ export default function AdminDashboard() {
         f.lastName || '',
         f.firstName || '',
         f.middleInitial || '',
-        f.gender || f.sex || '',
+        f.gender || '',
         s.course || '',
         s.year_level || '',
         s.contact_number || f.mobilePhone || '',
-        f.email || f.institutionalEmail || '',
+        f.institutionalEmail || f.personalEmail || f.email || '',
         s.submission_status || 'submitted',
         s.admin_remarks || '',
         new Date(s.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }),
       ];
     });
 
-    const escapeCSV = (val: any) => {
-      const str = String(val ?? '');
-      if (str.includes(',') || str.includes('"') || str.includes('\n')) return `"${str.replace(/"/g, '""')}"`;
-      return str;
-    };
-    const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(escapeCSV).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `student_inventory_records_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    ws['!cols'] = [
+      { wch: 5 },  // #
+      { wch: 16 }, // Student ID
+      { wch: 20 }, // Last Name
+      { wch: 20 }, // First Name
+      { wch: 10 }, // Middle Initial
+      { wch: 8 },  // Sex
+      { wch: 35 }, // Course
+      { wch: 14 }, // Year Level
+      { wch: 16 }, // Contact Number
+      { wch: 32 }, // Email
+      { wch: 12 }, // Status
+      { wch: 25 }, // Admin Remarks
+      { wch: 16 }, // Submitted Date
+    ];
+    XLSX.utils.book_append_sheet(wb, ws, 'Student Inventory Form');
+    XLSX.writeFile(wb, `Student_Inventory_Form_${new Date().toISOString().split('T')[0]}.xlsx`);
     toast.success(`✅ Exported ${filteredAndSortedSubmissions.length} student inventory records`);
   };
 

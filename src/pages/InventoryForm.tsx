@@ -573,7 +573,7 @@ export default function InventoryForm() {
         student_id: resolvedFormData.idNo,
         full_name: `${resolvedFormData.lastName}, ${resolvedFormData.firstName}${resolvedFormData.middleInitial ? ' ' + resolvedFormData.middleInitial + '.' : ''}`.trim(),
         course: resolvedFormData.programYear,
-        year_level: resolvedFormData.programYear.split(' ')[0] || '',
+        year_level: resolvedFormData.programYear.split(' - ')[1]?.trim() || resolvedFormData.programYear.split(' ')[0] || '',
         contact_number: resolvedFormData.mobilePhone,
         photo_url: photoUrl || '',
         form_data: cleanFormData,
